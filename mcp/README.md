@@ -61,31 +61,11 @@ codex mcp add xutu-terminal --url http://127.0.0.1:62924/mcp --bearer-token-env-
 - `xutu_execute`：绑定成功 previewJobId 与使用者本次明确同意原文 approval。预览有效期5分钟，不能更换命令；账号/网页变化、版本冲突会停止。恢复通过既有 history.preview 的 reviewToken 核对。
 - `xutu_result`：查询原任务；dispatched 表示尚未确认完成，不是成功，也不能自动重发。
 
-AI 必须先展示预览摘要并等用户同意。approval 由客户端引用，服务无法独立证明这是人类输入，不能将此说成独立人工认证；不要编造同意。脚本执行及带可执行内容的原始页面导出仍只在本机插件的原有入口处理；MCP 新增下述限定读取。其他现有业务/审核操作遵循正式参数契约及服务器权限，不代表每项均通过真实网站测试。
+AI 必须先展示预览摘要并等用户同意。approval 由客户端引用，服务无法独立证明这是人类输入，不能将此说成独立人工认证；不要编造同意。脚本执行及带可执行内容的原始页面导出仍只在本机插件的原有入口处理。其他现有业务/审核操作遵循正式参数契约及服务器权限，不代表每项均通过真实网站测试。
 
 约30秒轮询一次，浏览器休眠或关闭会延迟/停止。预览在扩展本机短期保存，浏览器工作线程重启可继续核对；服务重启不重放任务。断开不会撤销已经提交的操作。日志/任务仅在本机，服务内存最多保留1000条任务，满时维护者先核对未知结果再重启。
 
 实现依据：[MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)、[Codex MCP](https://learn.chatgpt.com/docs/extend/mcp)。协议握手版本 2025-06-18，提供 JSON 响应；GET SSE 未实现，返回405。不是对所有 AI 产品的兼容保证。
 
 
-## 文件和 DOM
-
-启动前在本机设置环境变量 `XUTU_EXPORT_ROOT` 为授权的绝对输出根目录，例如 Work-001 的「计划管理」。服务只接受根下的相对目录，不允许链接、上级路径、重名覆盖。不设置时导出不可用，其他工具照常工作。默认用系统 Chrome 在隔离临时目录离线渲染；非标准安装可设绝对 `XUTU_CHROME_PATH`。不得配成指向用户自带参数的脚本。
-
-```json
-{
-  "planId": "已读的计划稳定ID",
-  "version": 9,
-  "directory": "TRA-0014/版本9",
-  "formats": ["csv", "pdf", "png", "svg"],
-  "print": {"graph": true, "nodeTable": true, "edgeTable": true}
-}
-```
-
-调用 `xutu_export`，再用 `xutu_result` 查询文件路径、大小、SHA-256。打开与导出指定 ID 一致的序图标签再运行视觉或 HTML 导出；CSV 读取获准的指定计划。PDF 默认选网络图、序号定义和连线定义，支持 `nodeNames`、`inlineScore`、`scoreTable`、`paper`（A4、A3、Letter、Legal）、`landscape`、`marginMm`、`scale`。PDF 用站点的 SVG、计划记录、原生评分和工期重排，未自动操作网站打印窗口。PNG/SVG 可传 `region:{x,y,width,height}`，使用图的 viewBox 坐标。HTML 是非交互结构快照。
-
-`xutu_read` 支持独立的 `site.dom.read`，参数可选 `selector`（唯一命中）、`format`（html 或 text）、`maxChars`。序图站点、登录会话及绑定标签页范围内读；保留业务输入状态，去掉密码框、隐藏凭据、主动脚本和外部资源。默认读顶层文档；不提供 iframe、任意 JavaScript 或主动外链。页面结构超过上限时选择较小区域。
-
-向既有计划复制整图/区域，使用 `plan.copyGraph`。目标为 step.target，必须有明确 ID 和版本；params 为 `{source:{id,version},mode:"append",nodeIds:[...]}`。默认追加，选定区域只复制内部连线，预览列出丢开哪些边界；`mode:"replace"` 是显式全图替换。目标必须有写权限；首轮不覆盖已有审核基线或完成进度。按现有预览、同意、提交、读回规则执行。
-
-在「设置 → 序图自动登录」中录入账号密码后，扩展只在该浏览器的本地存储保存，并且只在经过识别的序图登录页尝试。不会反复提交错误密码，不保存进 Work-001、导出、MCP 或日志。清除设置即停用；当前网站会话不会因设置被强制登出。
+在「设置 → 序图自动登录 → 设置」可保存账号，平时表单收起。密码只存在本浏览器扩展存储，不会回显；点「清除」可停用。

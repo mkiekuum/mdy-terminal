@@ -12,8 +12,6 @@ export const parameterSchemas={
  'plan.update':object({set:object({title:nonempty,startDate:string,deadlineDate:string})},['set']),
  'plan.replace':object({...planFields,replace:{const:true}},['title','nodes','edges','replace']),
  'plan.copy':object({number:nonempty,owner:nonempty,title:nonempty},['number']),
- 'plan.copyGraph':object({source:object({id:nonempty,version:{type:'integer',minimum:0}},['id','version']),mode:{enum:['append','replace']},nodeIds:{type:'array',minItems:1,maxItems:100,uniqueItems:true,items:nonempty}},['source']),
- 'site.dom.read':object({selector:{type:'string',minLength:1,maxLength:250},format:{enum:['html','text']},maxChars:{type:'integer',minimum:1,maximum:500000}}),
  'plan.delete':object({permanent:boolean}),
  'plan.restoreSnapshot':object({backupId:nonempty},['backupId']),
  'node.create':node,
@@ -68,7 +66,7 @@ export function checkSchema(schema,value,path='$'){
  if(schema.enum&&!schema.enum.includes(value))invalid(path);
  if(schema.type){const actual=Array.isArray(value)?'array':value===null?'null':typeof value;if(schema.type==='integer'?!Number.isInteger(value):actual!==schema.type)invalid(path);}
  if(typeof value==='number'&&(!Number.isFinite(value)||schema.minimum!==undefined&&value<schema.minimum||schema.maximum!==undefined&&value>schema.maximum))invalid(path);
- if(typeof value==='string'&&(schema.minLength!==undefined&&value.length<schema.minLength||schema.maxLength!==undefined&&value.length>schema.maxLength))invalid(path);
+ if(schema.minLength!==undefined&&value.length<schema.minLength)invalid(path);
  if(schema.type==='object'){for(const key of schema.required||[])if(!Object.hasOwn(value,key))invalid(path+'.'+key);for(const[k,v]of Object.entries(value)){if(['__proto__','prototype','constructor'].includes(k))invalid(path+'.'+k);if(schema.properties?.[k])checkSchema(schema.properties[k],v,path+'.'+k);else if(schema.additionalProperties===false)invalid(path+'.'+k);}}
  if(schema.type==='array'){if(schema.minItems!==undefined&&value.length<schema.minItems||schema.maxItems!==undefined&&value.length>schema.maxItems)invalid(path);if(schema.uniqueItems&&new Set(value.map(x=>JSON.stringify(x))).size!==value.length)invalid(path);if(schema.items)value.forEach((v,i)=>checkSchema(schema.items,v,path+'['+i+']'));}
  return value;
@@ -77,7 +75,7 @@ export function validateStep(s){
  if(s.target?.version!==undefined&&s.target?.versionFrom!==undefined)invalid('版本依据只能选择version或versionFrom之一');
  if(parameterSchemas[s.op])checkSchema(parameterSchemas[s.op],s.params||{},s.op);
  if(s.target!==undefined)checkSchema(object({id:nonempty,number:nonempty,owner:nonempty,version:{type:'integer',minimum:0},versionFrom:nonempty}),s.target,'target');
- if(/^(node|edge|progress|review|graph)\./.test(s.op)||['task.merge','task.split','task.assign','task.updateStatus','plan.batch','plan.get','plan.update','plan.replace','plan.copy','plan.copyGraph','plan.export','plan.archive','plan.delete','plan.restore','plan.restoreSnapshot','schedule.updateInputs','history.restore'].includes(s.op)){
+ if(/^(node|edge|progress|review|graph)\./.test(s.op)||['task.merge','task.split','task.assign','task.updateStatus','plan.batch','plan.get','plan.update','plan.replace','plan.copy','plan.export','plan.archive','plan.delete','plan.restore','plan.restoreSnapshot','schedule.updateInputs','history.restore'].includes(s.op)){
   if(!s.target?.id&&!s.target?.number)invalid('target.id 或 target.number');
  }
 }

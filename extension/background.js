@@ -13,7 +13,6 @@ import {createUpdateChecker} from './updates.js';
 import {LocalStore,accountKey} from './local-store.js';
 import {HistoryManager,isBusinessWrite} from './history.js';
 import {rememberedLogin,triggerLogin} from './remember-login.js';
-import {captureSafeDocument,captureRenderedPlan} from './exports.js';
 import {capturePage,pageChunk,releasePageExport} from './html-export.js';
 const privateStore=new LocalStore();
 const exportHandles=new Map();
@@ -31,41 +30,6 @@ async function exportCommand(tab,op,p){
  const data=(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func,args}))[0]?.result;
  if(op==='site.html.begin'){if(!data?.exportId)fail('EXPORT_FAILED');exportHandles.set(data.exportId,{actor:session.actor,tabId:tab.id});if(exportHandles.size>16)exportHandles.delete(exportHandles.keys().next().value);}
  if(op==='site.html.release')exportHandles.delete(p.exportId);return data;
-}
-async function renderSource(capture,cfg){
- const tab=await tabFor({tabId:cfg?.tabId}),session=await sessionFor(tab), id=capture.planId;
- const plan=await request(tab,'/api/plans/'+encodeURIComponent(id));
- if(plan.id!==id||plan.revision!==capture.version||!Array.isArray(plan.current?.nodes)||!Array.isArray(plan.current?.edges))fail('VERSION_CONFLICT','请读取稳定 ID 与最新版本后再导出');
- const out={id,revision:plan.revision,current:clean(plan.current),review:clean(plan.review||null)};
- if(capture.formats.some(x=>['svg','png'].includes(x))||capture.formats.includes('pdf')&&capture.print.graph){
-  const r=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func:captureRenderedPlan,args:[{id,planNumber:plan.current.planNumber,planOwner:plan.current.planOwner,title:plan.current.title}]});
-  out.graph=r[0]?.result;if(!out.graph?.svg)fail('NATIVE_GRAPH_NOT_FOUND');
-  if(!plan.current.nodes.every(n=>out.graph.nodeLabels.includes(n.id)))fail('GRAPH_NODE_MISMATCH','网页网络图未显示全部节点，请打开完整图后再试');
- }
- if(capture.formats.includes('html')){
-  const latestTab=await tabFor({tabId:tab.id});
-  if(new URL(latestTab.url).searchParams.get('plan')!==id)fail('TARGET_MISMATCH','HTML 导出需要页面打开指定计划');
-  out.document=(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func:captureSafeDocument,args:[{maxChars:500000}]}))[0]?.result;
-  if(!out.document?.content)fail('DOM_EXPORT_FAILED');
- }
- if(capture.formats.includes('pdf')){
-  out.analysis=(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:readNativeAnalysis,args:[plan.current]}))[0]?.result;
-  if(!out.analysis?.available)fail('NATIVE_PRINT_DATA_UNAVAILABLE','网站的原生计算未返回，保留上一可用版本');
- }
- const latest=await request(tab,'/api/plans/'+encodeURIComponent(id));
- if((await sessionFor(tab)).actor!==session.actor||latest.revision!==plan.revision)fail('VERSION_CONFLICT','导出期间身份或网站版本变化，未保存');
- return out;
-}
-async function mcpRun(c,cfg){
- if(!cfg?.enabled||!cfg.tabId)throw Error('MCP 已断开');
- if(c.steps.some(s=>s.op==='site.dom.read')){
-  if(c.steps.length!==1)fail('INVALID_SCHEMA','DOM 读取请使用独立命令');
-  const s=c.steps[0],tab=await tabFor({tabId:cfg.tabId}),actor=(await sessionFor(tab)).actor;
-  const data=(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func:captureSafeDocument,args:[s.params||{}]}))[0]?.result;
-  if(!data||(await sessionFor(tab)).actor!==actor)fail('EXPORT_CONTEXT_CHANGED');
-  return {protocol:'xutu.result/v1',requestId:c.requestId,status:'success',steps:[{id:s.id,status:'success',data,serverVerified:false}]};
- }
- return executor.run({...c,tabId:cfg.tabId});
 }
 const checkUpdates=createUpdateChecker({load:async()=>(await chrome.storage.local.get('releaseCheck')).releaseCheck,save:report=>chrome.storage.local.set({releaseCheck:report})});
 async function compatibilityFor(tab){return collectCompatibility({inspect:()=>bridge(tab.id,{kind:'inspect'}),session:()=>request(tab,'/api/session'),plans:()=>request(tab,'/api/plans'),probe:async()=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:probeNativeCompatibility}))[0]?.result,userScripts:async()=>{if(!chrome.userScripts?.getScripts)return false;await chrome.userScripts.getScripts();return true;}});}
@@ -93,12 +57,11 @@ export const executor=new Executor(store,async(s,e,batch)=>{
  if(s.op==='convert.nativeToLegacy')return {data:nativeToLegacy(s.params),serverVerified:false};
  if(s.op==='system.version')return {data:{version:VERSION},serverVerified:false};
  if(s.op==='site.tabs')return {data:(await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'})).map(t=>({id:t.id,title:t.title,active:t.active})),serverVerified:false};
- if(s.op==='system.capabilities'||s.op==='site.capabilities')return {data:{api:Object.keys(reads).concat(writes,['site.context','site.tabs','site.compatibility']),local:Object.keys(parameterSchemas).filter(op=>op==='site.dom.read'||op.startsWith('site.html.')||['history.list','history.diff','history.undo','history.redo','history.restorePoint','history.resolvePending','history.preview','history.pending'].includes(op)),unavailable:['plan.delete permanent','user.create','user.update','user.disable','role.*','schedule.recalculate','server history'],mcpArtifacts:['csv','pdf','png','svg','html'],testStatus:'contract observed; test status varies by operation; see docs/LIVE_TEST_RESULTS.md'},serverVerified:false};
+ if(s.op==='system.capabilities'||s.op==='site.capabilities')return {data:{api:Object.keys(reads).concat(writes,['site.context','site.tabs','site.compatibility']),local:Object.keys(parameterSchemas).filter(op=>op.startsWith('site.html.')||['history.list','history.diff','history.undo','history.redo','history.restorePoint','history.resolvePending','history.preview','history.pending'].includes(op)),unavailable:['plan.delete permanent','user.create','user.update','user.disable','role.*','schedule.recalculate','server history'],testStatus:'contract observed; test status varies by operation; see docs/LIVE_TEST_RESULTS.md'},serverVerified:false};
  if(s.op==='system.logs'||s.op==='system.status'){const job=await store.get('job:'+(batch?.scope?batch.scope+':':'')+s.params?.requestId);return {data:job?.result||{status:job?'unconfirmed':'not_found',message:job?'此请求已有执行记录但未确认完成；只读核对，不自动重发。':'没有找到执行记录；不代表网站未修改。'},serverVerified:false};}
  if(s.op==='system.backup.get')return {data:await store.get('snapshot:'+s.params.backupId)||null,serverVerified:false};
  const tab=await tabFor(e);
  if(batch?.actor&&(await sessionFor(tab)).actor!==batch.actor)fail('HISTORY_CONTEXT_MISMATCH','登录账号在执行期间变化，已停止后续操作。');
- if(s.op==='site.dom.read')fail('MCP_ONLY','此读取得走 MCP 专用路由，避免在执行日志保留 DOM。');
  if(s.op.startsWith('site.html.'))fail('EXPORT_USER_ACTION_REQUIRED','网页原文只通过主界面的复制/导出按钮读取，不进入执行日志。');
  if(['history.list','history.diff','history.undo','history.redo','history.restorePoint','history.resolvePending','history.preview','history.pending'].includes(s.op)){
  const session=await sessionFor(tab),history=new HistoryManager(privateStore,async(...args)=>{if(args[1]==='POST'&&(await sessionFor(tab)).actor!==session.actor)fail('HISTORY_CONTEXT_MISMATCH');return request(tab,...args);},{lookupRequest:async requestId=>store.get('job:'+await accountKey(session.actor)+':'+requestId)});let data;
@@ -156,7 +119,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 chrome.runtime.onInstalled.addListener(()=>{chrome.storage.local.remove(['xutuThemes','xutuThemeUndo','releaseCheck']);chrome.storage.session.remove('aiConnection');});
 
 if(chrome.storage?.local){
-const mcpBridge=startMcpBridge({storage:chrome.storage.local,run:mcpRun,exportArtifacts:renderSource,identity:async cfg=>{if(!cfg?.enabled||!cfg.tabId)throw Error('MCP 已断开');const t=await tabFor({tabId:cfg.tabId});return t.id+':'+(await sessionFor(t)).actor;}});
+const mcpBridge=startMcpBridge({storage:chrome.storage.local,run:async(c,cfg)=>{if(!cfg?.enabled||!cfg.tabId)throw Error('MCP 已断开');return executor.run({...c,tabId:cfg.tabId});},identity:async cfg=>{if(!cfg?.enabled||!cfg.tabId)throw Error('MCP 已断开');const t=await tabFor({tabId:cfg.tabId});return t.id+':'+(await sessionFor(t)).actor;}});
 chrome.runtime.onStartup?.addListener(async()=>{const {mcpConnection:c}=await chrome.storage.local.get('mcpConnection');if(c)await chrome.storage.local.set({mcpConnection:{...c,enabled:false}});await mcpBridge.reset();await chrome.storage.local.set({mcpBridgeStatus:{state:'disconnected',message:'浏览器已重启，请重新导入连接以绑定当前网页。'}});});
 chrome.alarms?.onAlarm.addListener(a=>{if(a.name==='xutu-mcp')mcpBridge.tick();});
 chrome.alarms?.create('xutu-mcp',{periodInMinutes:0.5});

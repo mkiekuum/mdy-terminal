@@ -66,7 +66,7 @@
   },
   "authenticatedTests": false,
   "extensionLocal": {
-    "version": "3.2.2",
+    "version": "3.2.3",
     "operations": [
       "history.list",
       "history.undo",
@@ -79,10 +79,8 @@
       "site.html.release",
       "history.preview",
       "history.pending",
-      "site.dom.read",
-      "xutu_export",
-      "plan.copyGraph"
+          "plan.copyGraph"
     ],
-    "notice": "MCP 读与导出只用获准站点和本机目录；图形复制通过既有计划导入及版本保护。扩展部署和真实提交各自验收。"
+    "notice": "MCP 使用已有网站权限。扩展部署和真实提交各自验收。"
   }
 }

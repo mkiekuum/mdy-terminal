@@ -130,8 +130,6 @@
                     "plan.update",
                     "plan.replace",
                     "plan.copy",
-                    "plan.copyGraph",
-                    "site.dom.read",
                     "plan.delete",
                     "plan.restoreSnapshot",
                     "node.create",

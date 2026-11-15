@@ -26,6 +26,25 @@ try{
  for(let i=0;i<50;i++){if(await evaluate('window.qaReady===true'))break;await sleep(100);}await sleep(150);
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
+ const loginUI=await evaluate(`(async()=>{
+  const $=id=>document.getElementById(id);
+  $('moreToggle').click();
+  const initial=$('loginSettings').hidden&&$('editLogin').getAttribute('aria-expanded')==='false';
+  await $('editLogin').onclick();
+  const expanded=!$('loginSettings').hidden&&$('editLogin').getAttribute('aria-expanded')==='true';
+  $('loginAccount').value='synthetic-user';
+  $('loginPassword').value='synthetic-password';
+  await $('rememberLogin').onclick();
+  const saved=$('loginSettings').hidden&&$('loginPassword').value===''&&$('message').textContent.includes('已启用');
+  await $('editLogin').onclick();
+  const privateOnReopen=$('loginAccount').value==='synthetic-user'&&$('loginPassword').value==='';
+  await $('forgetLogin').onclick();
+  const cleared=$('loginAccount').value===''&&$('loginStatus').textContent.includes('未启用');
+  await $('editLogin').onclick();
+  return {initial,expanded,saved,privateOnReopen,cleared,closed:$('loginSettings').hidden};
+ })()`);
+ for(const value of Object.values(loginUI))assert.equal(value,true);
+
  await evaluate(`(async()=>{document.querySelector('#request').value='模拟复杂产品计划，20个节点';await document.querySelector('#copyPrompt').onclick();})()`);
  const questions=await evaluate(`({count:document.querySelectorAll('#intakeQuestions fieldset').length,hidden:!!document.querySelector('#intakePanel'),message:document.querySelector('#message').textContent})`);assert.equal(questions.count,0);assert.equal(questions.hidden,false);
  const promptScope=await evaluate(`(async()=>{const before=qaSite.calls.filter(c=>c.path==='/api/project-groups').length;document.querySelector('#request').value='新建并分配到项目组';await document.querySelector('#copyPrompt').onclick();return {unrelatedGroupReads:before,groupReads:qaSite.calls.filter(c=>c.path==='/api/project-groups').length,hasRequestedGroups:document.querySelector('#manualCopyText').value.includes('Synthetic group')};})()`);
@@ -64,5 +83,5 @@ try{
  assert(sidebarUI.noHover&&sidebarUI.close.every(Boolean)&&sidebarUI.restored);
  // Synthetic UI evidence, never a screenshot of the user's website.
  const screenshot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'synthetic-ui.png'),Buffer.from(screenshot.data,'base64'));
- const report={browser:version.product,isolatedProfile:true,siteLogin:false,offlineEmulation:true,rawBytes:raw.bytes,offlineBytes:meta.bytes,missingResources:meta.missingResources,offline,networkWrites:writes.length,ui,questions,promptScope,mcpCopy,execution,flowUI,recoveryUI,sidebarUI,nativeSidebarSource:!!nativeSidebarCode,scope:'合成数据：真实Chrome离线渲染及网页模式UI；未安装扩展，未登录真实网站，未验证生产写入或系统剪贴板'};await fs.writeFile(path.join(out,'browser-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));await call('Browser.close');
+ const report={browser:version.product,isolatedProfile:true,siteLogin:false,offlineEmulation:true,rawBytes:raw.bytes,offlineBytes:meta.bytes,missingResources:meta.missingResources,offline,networkWrites:writes.length,ui,questions,promptScope,mcpCopy,execution,flowUI,recoveryUI,sidebarUI,nativeSidebarSource:!!nativeSidebarCode,loginUI,scope:'合成数据：真实Chrome离线渲染及网页模式UI；未安装扩展，未登录真实网站，未验证生产写入或系统剪贴板'};await fs.writeFile(path.join(out,'browser-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));await call('Browser.close');
 }finally{if(ws?.readyState===1)ws.close();for(const p of pending.values())clearTimeout(p.timer);if(server)await new Promise(resolve=>server.close(resolve));if(child.exitCode===null)child.kill();}
