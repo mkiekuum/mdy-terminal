@@ -2,6 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import test from 'node:test';
+import {fileURLToPath} from 'node:url';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import assert from 'node:assert/strict';
 import {replaceUnpacked} from '../tools/replace-unpacked.mjs';
 
@@ -41,4 +44,19 @@ test('已修改安装、权限扩大、用户文件冲突都不会覆盖原目�
  await fs.writeFile(path.join(dirs.candidate,'user-note.txt'),'would overwrite');
  await assert.rejects(replaceUnpacked({...dirs,apply:true}),/用户文件冲突/);
  assert.equal(await fs.readFile(path.join(dirs.install,'user-note.txt'),'utf8'),'retain');
+});
+
+
+test('从 macOS 样式的目录别名运行更新入口，确实替换并回读版本',{skip:process.platform==='win32'},async t=>{
+ const {dirs}=await fixture(t),folder=path.dirname(dirs.install);
+ const tools=fileURLToPath(new URL('../tools/',import.meta.url));
+ const alias=path.join(folder,'tools-alias');
+ await fs.symlink(tools,alias,'dir');
+ const entry=path.join(alias,'replace-unpacked.mjs'),run=promisify(execFile);
+ const preview=await run(process.execPath,[entry,dirs.install,dirs.previous,dirs.candidate]);
+ assert.equal(JSON.parse(preview.stdout).status,'preview');
+ assert.equal(JSON.parse(await fs.readFile(path.join(dirs.install,'manifest.json'),'utf8')).version,'3.1.2');
+ const applied=await run(process.execPath,[entry,dirs.install,dirs.previous,dirs.candidate,'--apply']);
+ assert.equal(JSON.parse(applied.stdout).status,'files_replaced');
+ assert.equal(JSON.parse(await fs.readFile(path.join(dirs.install,'manifest.json'),'utf8')).version,'3.2.0');
 });
