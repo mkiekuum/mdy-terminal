@@ -42,9 +42,20 @@ export function mergeRecovery(base,wanted,latest,{acceptConflicts=false}={}){
 
 export function verifySaved(expected,actual,{strictLayout=false}={}){
  const fields=['title','planOwner','planNumber','start','deadline','nodes','edges','baseline'];
- const mismatches=fields.filter(k=>!equivalent(expected[k],actual[k]));
+ // The plan API adds visualIgnore:false to edges when the submitted option is absent.
+ // This exact default has no business effect; true, unknown values and all other fields remain strict.
+ let defaultedEdges=0;
+ const expectedEdges=Array.isArray(expected.edges)&&Array.isArray(actual.edges)
+  ?expected.edges.map((edge,i)=>{
+   if(!Object.hasOwn(edge,'visualIgnore')&&actual.edges[i]?.visualIgnore===false){
+    defaultedEdges++;
+    return {...edge,visualIgnore:false};
+   }
+   return edge;
+  }):expected.edges;
+ const mismatches=fields.filter(k=>!equivalent(k==='edges'?expectedEdges:expected[k],actual[k]));
  if(mismatches.length)fail('SERVER_NOT_CONFIRMED','业务字段回读不一致：'+mismatches.join('、'));
  const layoutVerified=equivalent(expected.positions,actual.positions);
  if(strictLayout&&!layoutVerified)throw Object.assign(Error('业务字段已回读确认，但本次明确调整的布局尚未确认：positions'),{code:'SERVER_NOT_CONFIRMED',verification:{businessVerified:true,layoutVerified:false}});
- return {businessVerified:true,layoutVerified,...(!layoutVerified?{warning:'业务已保存并回读确认；网站调整了布局坐标，布局与提交值不同。'}:{})};
+ return {businessVerified:true,layoutVerified,...(defaultedEdges?{defaultedEdgeVisualIgnore:defaultedEdges}:{}),...(!layoutVerified?{warning:'业务已保存并回读确认；网站调整了布局坐标，布局与提交值不同。'}:{})};
 }
