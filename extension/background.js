@@ -1,3 +1,4 @@
+import {choosePlanTab} from './active-plan-tab.js';
 import {startMcpBridge} from './mcp-bridge.js';
 import {captureSummary,redact} from './assistance.js';
 import {Executor,validate,fail,VERSION,clean} from './core.js';
@@ -69,6 +70,12 @@ async function mcpRun(c,cfg){
 const checkUpdates=createUpdateChecker({load:async()=>(await chrome.storage.local.get('releaseCheck')).releaseCheck,save:report=>chrome.storage.local.set({releaseCheck:report})});
 async function compatibilityFor(tab){return collectCompatibility({inspect:()=>bridge(tab.id,{kind:'inspect'}),session:()=>request(tab,'/api/session'),plans:()=>request(tab,'/api/plans'),probe:async()=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:probeNativeCompatibility}))[0]?.result,userScripts:async()=>{if(!chrome.userScripts?.getScripts)return false;await chrome.userScripts.getScripts();return true;}});}
 const store={get:async k=>(await chrome.storage.local.get(k))[k],set:async(k,v)=>chrome.storage.local.set({[k]:v})};
+async function currentPlanTab(){
+ const all=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});
+ let last;
+ if(chrome.windows?.getLastFocused)last=(await chrome.windows.getLastFocused().catch(()=>null))?.id;
+ return choosePlanTab(all,last,last);
+}
 async function tabFor(e){if(e.tabId){const t=await chrome.tabs.get(e.tabId);if(new URL(t.url).origin!=='https://plan.fpgabbs.cn')fail('PERMISSION_DENIED');return t;}const tabs=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});if(tabs.length!==1)fail('TARGET_AMBIGUOUS','请打开唯一序图标签页或指定 tabId');return tabs[0];}
 async function request(tab,path,method='GET',body){
  const r=await bridge(tab.id,{kind:'api',path,method,body});if(!r?.ok)fail(r?.code||'NETWORK_ERROR',r?.message||'网站连接失败');return r.data;
@@ -134,6 +141,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  if(sender.id!==chrome.runtime.id||sender.url?.split(/[?#]/)[0]!==chrome.runtime.getURL('ui.html'))return;
  (async()=>{
   if(message.kind==='openSite'){const tabs=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});if(tabs.length)await chrome.tabs.update(tabs[0].id,{active:true});else await chrome.tabs.create({url:'https://plan.fpgabbs.cn/'});return {opened:true};}
+  if(message.kind==='currentPlanTab'){const t=await currentPlanTab();return {tabId:t?.id||null};}
   if(message.kind==='tabs')return (await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'})).map(t=>({id:t.id,title:t.title,active:t.active}));
   if(message.kind==='updates')return checkUpdates();
   if(message.kind==='loginStatus')return autoLogin.status();

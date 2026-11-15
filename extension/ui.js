@@ -11,16 +11,16 @@ import {formatCompatibility} from './compatibility.js';
 import {VERSION} from './core.js';
 import {buildAgentUpdatePrompt} from './updates.js';
 import {setupHistory,setupExport} from './ui-workflows.js';
-const $=id=>document.getElementById(id);let tabs=[],lastRequestId='',compatibilityReport=null,compatibilityGeneration=0,refreshGeneration=0;
+const $=id=>document.getElementById(id);let openingTabId,selectedPlanTab,lastRequestId='',compatibilityReport=null,compatibilityGeneration=0,refreshGeneration=0;
 const toolPanels=setupToolPanels(document);
 let intent='create',updateReport=null,lastCommand=null,lastResult=null,pendingAction=null;
-function review(notice,details,action){$('reviewPanel').hidden=false;$('reviewNotice').textContent=notice;$('reviewDiff').textContent=typeof details==='string'?details:JSON.stringify(details,null,2);const selected=tabId();pendingAction=async()=>{if(selected!==tabId())throw Error('网页选择已变化，请重新核对影响。');await action();};}
+function review(notice,details,action){$('reviewPanel').hidden=false;$('reviewNotice').textContent=notice;$('reviewDiff').textContent=typeof details==='string'?details:JSON.stringify(details,null,2);const selected=openingTabId;pendingAction=async()=>{const target=await send({kind:'currentPlanTab'});if(selected!==target.tabId)throw Error('网页选择已变化，请重新核对影响。');await action();};}
 $('cancelAction').onclick=()=>{pendingAction=null;$('reviewPanel').hidden=true;message('已保留网站现状。');};
 $('confirmAction').onclick=()=>busy('confirmAction',async()=>{const action=pendingAction;pendingAction=null;$('reviewPanel').hidden=true;if(action)await action();});
 chrome.runtime.onMessage.addListener((m,sender)=>{if(sender.id===chrome.runtime.id&&m.kind==='executionPhase'&&m.requestId===lastRequestId&&$('execute').disabled){const labels={checking:'正在检查网站最新内容…',submitting:'正在提交修改，请勿重复执行…',verifying:'网站已响应，正在回读核对…'};if(labels[m.phase])message(labels[m.phase]);}});
 function chooseIntent(value){intent=value;$('createPlan').setAttribute('aria-pressed',String(value==='create'));$('managePlan').setAttribute('aria-pressed',String(value==='manage'));$('requestLabel').textContent=value==='create'?'新建计划的需求':'管理计划的需求';$('request').placeholder=value==='create'?'想新建什么计划？写下目标和要求…':'要新增、删除任务，还是调整依赖、人员或进度？';}
 $('createPlan').onclick=()=>chooseIntent('create');$('managePlan').onclick=()=>chooseIntent('manage');
-const tabId=()=>Number($('tabs').value)||undefined;
+const tabId=()=>selectedPlanTab||undefined;
 const message=(text,error=false)=>{$('message').textContent=text;$('message').dataset.error=String(error);};
 const send=async input=>{const result=await chrome.runtime.sendMessage(input);if(!result)throw Error('插件未响应，请重新加载插件。');return result;};
 const updatePromise=(async()=>{
@@ -47,16 +47,15 @@ async function readContext(projectGroups='selected'){if(!tabId())return {complet
 $('checkCompatibility').onclick=()=>busy('checkCompatibility',checkCompatibility);
 $('copyCompatibility').onclick=()=>busy('copyCompatibility',async()=>{const report=await checkCompatibility();await clipboard(formatCompatibility(report));message('兼容状态已复制，可交给维护者；不含计划内容。');});
 async function refresh(){
- const generation=++refreshGeneration,prior=tabId();const found=await send({kind:'tabs'});if(generation!==refreshGeneration)return;tabs=found;if(!Array.isArray(tabs))throw Error('无法读取序图网页。');$('tabs').replaceChildren();
- if(tabs.length>1){const empty=document.createElement('option');empty.value='';empty.textContent='请选择要操作的序图网页';$('tabs').append(empty);}
- for(const tab of tabs){const option=document.createElement('option');option.value=tab.id;option.textContent=tab.title+' · '+tab.id;$('tabs').append(option);}
- if(tabs.some(t=>t.id===prior))$('tabs').value=prior;
- $('targetRow').hidden=tabs.length<2;if(!tabs.length){$('connection').textContent='先打开序图并登录';document.querySelector('.connection-strip').dataset.state='error';++compatibilityGeneration;showCompatibility(null);return;}
- if(!tabId()){$('connection').textContent='请先选择要操作的序图网页';document.querySelector('.connection-strip').dataset.state='error';++compatibilityGeneration;showCompatibility(null);return;}
+ const generation=++refreshGeneration;
+ const found=await send({kind:'currentPlanTab'});
+ if(generation!==refreshGeneration)return;
+ selectedPlanTab=Number(found.tabId)||undefined;
+ openingTabId=selectedPlanTab;
+ if(!tabId()){$('connection').textContent='请打开要操作的序图页面';document.querySelector('.connection-strip').dataset.state='error';++compatibilityGeneration;showCompatibility(null);return;}
  const session=await send({kind:'run',command:envelope('site.session')});if(generation!==refreshGeneration)return;$('connection').textContent=session.status==='success'?'已连接 · 使用当前网站账号':'请在序图网站登录后重新打开插件';document.querySelector('.connection-strip').dataset.state=session.status==='success'?'connected':'error';await checkCompatibility();await historyUI.load(false).catch(()=>{});
 }
 $('openSite').onclick=()=>busy('openSite',async()=>{await send({kind:'openSite'});});
-$('tabs').onchange=()=>{pendingAction=null;$('reviewPanel').hidden=true;historyUI.reset();return refresh().catch(e=>message(e.message,true));};
 $('copyPrompt').onclick=()=>busy('copyPrompt',async()=>{
  if(!$('request').value.trim())throw Error('先写下你想做什么。');
  const selected=tabId(),selectedIntent=intent,requestText=$('request').value,context=await readContext(projectGroupMode(requestText,selectedIntent));

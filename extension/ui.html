@@ -4,7 +4,6 @@
 <header><h1>序图终端</h1><button id="openSite" class="text-button">打开网站 ↗</button></header>
 <div class="connection-strip"><span class="status-dot" aria-hidden="true"></span><p id="connection" role="status">正在连接…</p></div>
 <main>
-<div id="targetRow" hidden><label for="tabs">操作网页</label><select id="tabs"></select></div>
 <section class="compose-card"><div class="field-heading"><div class="intent-switch" role="group" aria-label="计划操作"><button id="createPlan" type="button" aria-pressed="true">新建</button><button id="managePlan" type="button" aria-pressed="false" title="新增、删除任务及其他计划操作">管理</button></div></div><label id="requestLabel" for="request" class="visually-hidden">新建计划的需求</label><textarea id="request" rows="3" placeholder="想新建什么计划？写下目标和要求…"></textarea><div class="prompt-actions"><button id="copyPrompt" class="secondary">复制给 AI</button><button id="copyMcpPrompt" class="secondary">复制给 MCP AI</button></div><p class="key-note">MCP 提示词含密钥，仅发给可信 AI</p></section>
 <section class="execute-card"><div class="field-heading"><label for="editor">执行指令</label></div><textarea id="editor" rows="6" spellcheck="false" placeholder="粘贴完整 JSON 或 Markdown JSON 代码块…"></textarea><p id="changeSummary" class="hint" role="status"></p><button id="execute" class="primary">执行</button></section>
 <section id="reviewPanel" hidden><h2>请核对本次影响</h2><p id="reviewNotice"></p><pre id="reviewDiff"></pre><div class="button-row"><button id="confirmAction" class="primary">确认处理</button><button id="cancelAction">保留现状</button></div></section>
