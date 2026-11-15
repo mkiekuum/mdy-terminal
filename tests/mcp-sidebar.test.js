@@ -26,7 +26,7 @@ test('MCP 网络密钥分离、Origin、协议发现、队列、结果和重复e
  const rpc=async(method,params)=>{const r=await post('/mcp',{jsonrpc:'2.0',id:1,method,params});return r.json();};
  try{
  assert.equal((await post('/mcp',{},'bad')).status,401);assert.equal((await post('/mcp',{},clientToken,{Origin:'https://evil.invalid'})).status,403);assert.equal((await fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+clientToken}})).status,401);
- assert.equal((await rpc('initialize',{})).result.protocolVersion,'2025-06-18');assert.equal((await rpc('tools/list',{})).result.tools.length,4);await fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+bridgeToken,'X-Xutu-Bridge-Id':'test-browser'}});
+ assert.equal((await rpc('initialize',{})).result.protocolVersion,'2025-06-18');assert.equal((await rpc('tools/list',{})).result.tools.length,5);await fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+bridgeToken,'X-Xutu-Bridge-Id':'test-browser'}});
  const call=async(name,args)=>{const r=await rpc('tools/call',{name,arguments:args});return r.result;};assert((await call('xutu_read',{command:cmd('plan.update')})).isError);
  const queued=JSON.parse((await call('xutu_preview',{command:cmd('plan.update')})).content[0].text),pull=()=>fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+bridgeToken,'X-Xutu-Bridge-Id':'test-browser'}}).then(r=>r.json());const job=await pull();assert.equal(job.id,queued.jobId);assert.equal(await pull(),null);
  await post('/bridge/result',{id:job.id,result:{previewJobId:job.id}},bridgeToken);const a=JSON.parse((await call('xutu_execute',{previewJobId:job.id,approval:'同意'})).content[0].text),b=JSON.parse((await call('xutu_execute',{previewJobId:job.id,approval:'同意'})).content[0].text);assert.equal(a.jobId,b.jobId);

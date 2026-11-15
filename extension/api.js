@@ -1,3 +1,4 @@
+import {transferGraph} from './graph-transfer.js';
 import {inspectFlow,enforceFlow} from './flow-check.js';
 import {verifySaved} from './recovery.js';
 import {fail,assert,clone,edge,nativePlan,validatePlan,validDate,equivalent,operationId} from './core.js';
@@ -10,7 +11,7 @@ export const writes=['plan.create','plan.update','plan.replace','plan.copy','pla
 writes.push('plan.restoreSnapshot','node.batchUpdate','node.renumber');
 writes.push('graph.simplify','plan.batch');
 writes.push('task.merge','task.split');
-writes.push('task.assign','task.updateStatus');
+writes.push('task.assign','task.updateStatus','plan.copyGraph');
 export class ApiAdapter{
  constructor(request,options={}){this.request=request;this.options=options;}
  async resolve(t={}){if(t.id)return t.id;assert(typeof t.number==='string','target.id 或 number 必填');const items=(await this.request('/api/plans')).filter(p=>p.planNumber===t.number&&(!t.owner||p.planOwner===t.owner));if(items.length!==1)fail(items.length?'TARGET_AMBIGUOUS':'TARGET_NOT_FOUND');return items[0].id;}
@@ -84,6 +85,14 @@ export class ApiAdapter{
  if(t.versionFrom!==undefined)fail('INVALID_SCHEMA','versionFrom 必须由执行器关联到已确认步骤');
  if(['node.batchUpdate','node.renumber'].includes(op))assert(Number.isInteger(t.version),'局部批量修改必须提供读取依据版本');
  if(t.version!==undefined&&t.version!==before.revision)fail('VERSION_CONFLICT');
+ if(op==='plan.copyGraph'){
+  assert(Number.isInteger(t.version),'跨计划复制需要目标版本');
+  assert(p.source.id!==id,'来源与目标必须是两份不同计划');
+  const source=await this.request('/api/plans/'+encodeURIComponent(p.source.id));
+  if(source.revision!==p.source.version)fail('SOURCE_VERSION_CONFLICT','来源图已变化，重新预览后再提交');
+  const result=transferGraph(source.current,current,p);
+  current=result.plan;changes={...result.changes,source:{id:source.id,owner:source.current.planOwner,number:source.current.planNumber,revision:source.revision},destination:{id,owner:before.current.planOwner,number:before.current.planNumber,revision:before.revision}};
+ }
  if(op==='plan.batch'){
  assert(Number.isInteger(t.version),'批量修改必须提供读取依据版本');
  let virtual=clone(before);
@@ -120,12 +129,12 @@ export class ApiAdapter{
  const operation=await operationId(e.requestId,s.id);let body={baseRevision:before?.revision,current,operation};
  if(path==='/api/plans')body={id,current,...(op==='plan.copy'?{copySourceId:before.id}:{})};
  else if(['plan.archive','plan.delete','plan.restore','review.submit','review.approve','review.reject','history.restore'].includes(op)){path+={'plan.archive':'/trash','plan.delete':'/trash','plan.restore':'/undelete','review.submit':'/submit','review.approve':'/review','review.reject':'/review','history.restore':'/restore'}[op];body={baseRevision:before.revision,operation};if(op.startsWith('review.')&&op!=='review.submit'){body.decision=op.split('.')[1];body.note=p.note||'';if(body.decision==='reject')assert(body.note.trim(),'退回需要 note');}if(op==='history.restore'){assert(Number.isInteger(p.targetRevision),'targetRevision 必须整数');body.targetRevision=p.targetRevision;}}
- else path+=['plan.batch','plan.replace','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
+ else path+=['plan.batch','plan.replace','plan.copyGraph','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
  await this.options.onPhase?.('submitting');trace.id=id;trace.submitted=true;const written=await this.request(path,'POST',body);
  if(op==='plan.archive'||op==='plan.delete'){const trash=await this.request('/api/trash');if(!trash.some(x=>x.id===id))fail('SERVER_NOT_CONFIRMED','垃圾桶回读未找到目标');return {targetId:id,serverVerified:true,...(backupId?{backupId}:{}),data:{recoverable:true}};}
  await this.options.onPhase?.('verifying');const after=await this.request('/api/plans/'+encodeURIComponent(id));if(after.revision!==written.revision)fail('SERVER_NOT_CONFIRMED','回读版本不一致');
  let verification;
- if(path.endsWith('/change')||path==='/api/plans'||path.endsWith('/import'))verification=verifySaved(current,after.current,{strictLayout:['node.renumber','plan.replace','plan.restoreSnapshot'].includes(op)||op==='plan.batch'&&p.changes.some(c=>c.op==='node.renumber')});
+ if(path.endsWith('/change')||path==='/api/plans'||path.endsWith('/import'))verification=verifySaved(current,after.current,{strictLayout:['node.renumber','plan.replace','plan.copyGraph','plan.restoreSnapshot'].includes(op)||op==='plan.batch'&&p.changes.some(c=>c.op==='node.renumber')});
  return {targetId:id,serverVerified:true,...(flowCheck?{flowCheck}:{}),...(backupId?{backupId}:{}),...(changes?{changes}:{}),...(verification?{verification}:{}),beforeVersion:before?.revision,afterVersion:after.revision,data:after};
  }
 }

@@ -430,6 +430,82 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
 }
 ```
 
+## plan.copyGraph
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "mode": {
+      "enum": [
+        "append",
+        "replace"
+      ]
+    },
+    "nodeIds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "additionalProperties": false
+}
+```
+
+## site.dom.read
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "selector": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 250
+    },
+    "format": {
+      "enum": [
+        "html",
+        "text"
+      ]
+    },
+    "maxChars": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500000
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
 ## plan.delete
 
 ```json

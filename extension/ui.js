@@ -65,7 +65,7 @@ $('copyPrompt').onclick=()=>busy('copyPrompt',async()=>{
 });
 function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';$('helpPrivacy').hidden=result.status==='success';message([summarize(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
 async function execute(command){let result;try{result=await send({kind:'run',command});}catch{result={requestId:command.requestId,status:'failed',code:'TIMEOUT_RESULT_UNKNOWN',message:'连接中断，执行结果尚未确认。请只读核对，不要重新提交。'};}showResult(result,command);await historyUI.load(false).catch(()=>{});if(result.code==='HISTORY_SNAPSHOT_INCOMPLETE'||result.steps?.some(x=>x.code==='HISTORY_SNAPSHOT_INCOMPLETE'))await historyUI.inspectPending();}
-function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['node.remove','edge.remove'].includes(c.op)));}
+function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.copyGraph','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['node.remove','edge.remove'].includes(c.op)));}
 $('execute').onclick=()=>busy('execute',async()=>{
  lastRequestId=await stableRequestId($('editor').value);
  const command=compactPlanEdits(prepareCommand($('editor').value,tabId(),lastRequestId));
@@ -96,3 +96,8 @@ $('optimizeSidebar').onchange=async()=>{try{await chrome.storage.local.set({opti
 $('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews']);$('mcpState').textContent='已断开，清除本机连接密钥。';});
 
 chrome.storage.onChanged?.addListener((changes,area)=>{if(area==='local'&&changes.mcpBridgeStatus){const s=changes.mcpBridgeStatus.newValue;$('mcpState').textContent=s?.state==='connected'?'MCP 已连接':s?.message||'等待连接';}});
+
+function displayLogin(info){if(typeof info.enabled!=='boolean')throw Error('无法读取自动登录设置。');$('loginAccount').value=info.account;$('loginPassword').value='';$('loginStatus').textContent=info.enabled?'已启用。仅在序图登录页尝试登录。':'未启用。密码只保存在本浏览器扩展。';}
+$('loginSettings').addEventListener('toggle',()=>{if($('loginSettings').open)send({kind:'loginStatus'}).then(displayLogin).catch(()=>{});});
+$('rememberLogin').onclick=()=>busy('rememberLogin',async()=>{const account=$('loginAccount').value,password=$('loginPassword').value;$('loginPassword').value='';const result=await send({kind:'loginSave',tabId:tabId(),account,password});if(result.status==='failed')throw Error(result.message);displayLogin(result);});
+$('forgetLogin').onclick=()=>busy('forgetLogin',async()=>{const result=await send({kind:'loginClear'});if(result.status==='failed')throw Error(result.message);displayLogin(result);});
