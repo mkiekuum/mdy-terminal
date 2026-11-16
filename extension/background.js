@@ -17,11 +17,21 @@ import {capturePage,pageChunk,releasePageExport} from './html-export.js';
 const privateStore=new LocalStore();
 const exportHandles=new Map();
 const autoLogin=rememberedLogin(privateStore,{
- inspectSession:async tab=>{try{const s=await request(tab,'/api/session');if(s.mustChangePassword)return 'manual_verification';return s.actor?'already_logged_in':'logged_out';}catch(e){if(e.code==='NOT_LOGGED_IN')return 'logged_out';throw e;}},
+ inspectSession: inspectLogin,
  submit:async(tab,values)=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func:triggerLogin,args:[values]}))[0]?.result
 });
 chrome.tabs?.onUpdated?.addListener((id,change,tab)=>{if(change.status==='complete'&&tab.url?.startsWith('https://plan.fpgabbs.cn/'))autoLogin.onPage(tab).catch(()=>{});});
 
+async function inspectLogin(tab) {
+ try {
+  const session = await request(tab, '/api/session');
+  if (session.mustChangePassword) return 'manual_verification';
+  return session.actor ? 'already_logged_in' : 'logged_out';
+ } catch (error) {
+  if (error.code === 'NOT_LOGGED_IN') return 'logged_out';
+  throw error;
+ }
+}
 async function sessionFor(tab){const session=await request(tab,'/api/session');if(!session.actor||session.mustChangePassword)fail('NOT_LOGGED_IN','请先在序图网站登录并完成账号设置。');return session;}
 async function exportCommand(tab,op,p){
  const session=await sessionFor(tab);let func,args;
@@ -34,11 +44,15 @@ async function exportCommand(tab,op,p){
 const checkUpdates=createUpdateChecker({load:async()=>(await chrome.storage.local.get('releaseCheck')).releaseCheck,save:report=>chrome.storage.local.set({releaseCheck:report})});
 async function compatibilityFor(tab){return collectCompatibility({inspect:()=>bridge(tab.id,{kind:'inspect'}),session:()=>request(tab,'/api/session'),plans:()=>request(tab,'/api/plans'),probe:async()=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:probeNativeCompatibility}))[0]?.result,userScripts:async()=>{if(!chrome.userScripts?.getScripts)return false;await chrome.userScripts.getScripts();return true;}});}
 const store={get:async k=>(await chrome.storage.local.get(k))[k],set:async(k,v)=>chrome.storage.local.set({[k]:v})};
-async function currentPlanTab(){
+async function currentPlanTarget(){
  const all=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});
  let last;
  if(chrome.windows?.getLastFocused)last=(await chrome.windows.getLastFocused().catch(()=>null))?.id;
- return choosePlanTab(all,last,last);
+ const tab = choosePlanTab(all, last, last);
+ return {tab, selection: tab ? 'selected' : all.length ? 'ambiguous' : 'no_page'};
+}
+async function currentPlanTab() {
+ return (await currentPlanTarget()).tab;
 }
 async function tabFor(e){if(e.tabId){const t=await chrome.tabs.get(e.tabId);if(new URL(t.url).origin!=='https://plan.fpgabbs.cn')fail('PERMISSION_DENIED');return t;}const tabs=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});if(tabs.length!==1)fail('TARGET_AMBIGUOUS','请打开唯一序图标签页或指定 tabId');return tabs[0];}
 async function request(tab,path,method='GET',body){
@@ -119,8 +133,40 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 chrome.runtime.onInstalled.addListener(()=>{chrome.storage.local.remove(['xutuThemes','xutuThemeUndo','releaseCheck']);chrome.storage.session.remove('aiConnection');});
 
 if(chrome.storage?.local){
-const mcpBridge=startMcpBridge({storage:chrome.storage.local,run:async(c,cfg)=>{if(!cfg?.enabled||!cfg.tabId)throw Error('MCP 已断开');return executor.run({...c,tabId:cfg.tabId});},identity:async cfg=>{if(!cfg?.enabled||!cfg.tabId)throw Error('MCP 已断开');const t=await tabFor({tabId:cfg.tabId});return t.id+':'+(await sessionFor(t)).actor;}});
-chrome.runtime.onStartup?.addListener(async()=>{const {mcpConnection:c}=await chrome.storage.local.get('mcpConnection');if(c)await chrome.storage.local.set({mcpConnection:{...c,enabled:false}});await mcpBridge.reset();await chrome.storage.local.set({mcpBridgeStatus:{state:'disconnected',message:'浏览器已重启，请重新导入连接以绑定当前网页。'}});});
+const mcpBridge = startMcpBridge({
+ storage: chrome.storage.local,
+ resolveTarget: currentPlanTarget,
+ hasPermission: () => chrome.permissions.contains({origins:['http://127.0.0.1/*']}),
+ browserStatus: async (target, login) => {
+  const {enabled: autoLoginEnabled} = await autoLogin.status();
+  const report = {extensionVersion: VERSION, selection: target.selection, tabId: target.tab?.id ?? null, autoLoginEnabled};
+  if (!target.tab) return {...report, session: 'no_target'};
+  const tab = target.tab;
+  const action = login ? await autoLogin.onPage(tab) : null;
+  let session = await inspectLogin(tab);
+  // The site's submit handler signs in asynchronously. A submitted form is not proof of a session.
+  if (action === 'attempted') {
+   for (let attempt = 0; session === 'logged_out' && attempt < 8; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    session = await inspectLogin(tab);
+   }
+  }
+  return {...report, session, ...(login ? {loginAction: action} : {})};
+ },
+ run: async (command, config) => {
+  if (command.tabId && command.tabId !== config.tabId) fail('TARGET_CHANGED', '指令中的网页与当前序图页不同，请重新读取上下文。');
+  return executor.run({...command, tabId: config.tabId});
+ },
+ identity: async config => {
+  const tab = await tabFor({tabId: config.tabId});
+  const session = await sessionFor(tab);
+  return JSON.stringify([tab.id, new URL(tab.url).searchParams.get('plan'), session.actor]);
+ }
+});
+chrome.runtime.onStartup?.addListener(async () => {
+ await mcpBridge.reset();
+ await mcpBridge.tick();
+});
 chrome.alarms?.onAlarm.addListener(a=>{if(a.name==='xutu-mcp')mcpBridge.tick();});
 chrome.alarms?.create('xutu-mcp',{periodInMinutes:0.5});
 chrome.storage.onChanged?.addListener(async(c,area)=>{if(area==='local'&&c.mcpConnection){await mcpBridge.reset();await mcpBridge.tick();}});

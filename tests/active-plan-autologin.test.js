@@ -33,3 +33,24 @@ test('全新无登录记忆页面：空凭据不会提交，启用后首次只�
   await auth.clear();assert.equal(await auth.onPage(tab(1)),'disabled');assert.equal(posts,1);
  }finally{dom.window.close();fresh.window.close();}
 });
+
+test('登录页预填已保存的账号时继续登录，其他账号或已输入的密码保留原值', () => {
+ const dom = new JSDOM('<form id="cloudLoginForm"><input type="text"><input type="password"></form>', {url:'https://plan.fpgabbs.cn/',runScripts:'outside-only'});
+ try {
+  const form = dom.window.document.querySelector('form'), [name, secret] = form.elements;
+  form.getClientRects = () => [{}];
+  let submitted = 0;
+  form.addEventListener('submit', event => { event.preventDefault(); submitted++; });
+  const login = dom.window.eval('(' + triggerLogin.toString() + ')');
+  name.value = 'another';
+  assert.equal(login({account:'saved',password:'test'}), 'manual_in_progress');
+  assert.equal(name.value, 'another');
+  name.value = 'saved'; secret.value = 'typing';
+  assert.equal(login({account:'saved',password:'test'}), 'manual_in_progress');
+  assert.equal(secret.value, 'typing');
+  secret.value = '';
+  assert.equal(login({account:'saved',password:'test'}), 'attempted');
+  assert.equal(submitted, 1);
+  assert.equal(secret.value, '');
+ } finally { dom.window.close(); }
+});

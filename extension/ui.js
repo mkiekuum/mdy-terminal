@@ -101,7 +101,8 @@ async function refreshMcpSettings() {
  const state = mcpBridgeStatus?.state;
  let label = 'MCP 未连接';
  if (mcpConnection?.enabled) {
-  label = state === 'connected' ? 'MCP 已连接' : state === 'error' ? 'MCP 连接失败' : 'MCP 等待连接';
+  const recent = Date.now() - mcpBridgeStatus?.at <= 90000;
+  label = state === 'connected' && recent ? 'MCP 已连接' : state === 'error' ? 'MCP 连接失败' : 'MCP 等待连接';
  }
  $('mcpState').textContent = label;
  $('mcpState').title = mcpBridgeStatus?.message || '';

@@ -11,10 +11,11 @@ export function triggerLogin({account,password}){
  if(accounts.length!==1||passwordFields.length!==1||form.method?.toLowerCase()==='get'&&form.hasAttribute('method')||form.target&&form.target!=='_self')return 'unsupported_form';
  if(form.hasAttribute('action')&&new URL(form.action,location.href).origin!==location.origin)return 'wrong_origin';
  const [name]=accounts,[secret]=passwordFields;
- if(name.value||secret.value)return 'manual_in_progress';
+ if(secret.value || (name.value && name.value !== account))return 'manual_in_progress';
+ const previousAccount = name.value;
  name.value=account;secret.value=password;
  name.dispatchEvent(new Event('input',{bubbles:true}));secret.dispatchEvent(new Event('input',{bubbles:true}));
- if(!form.checkValidity()){name.value='';secret.value='';return 'invalid_fields';}
+ if(!form.checkValidity()){name.value=previousAccount;secret.value='';return 'invalid_fields';}
  // Only the site's normal submit wiring, never a guessed authentication endpoint.
  const preventQuery=event=>{if(event.target===form)event.preventDefault();};
  window.addEventListener('submit',preventQuery);
