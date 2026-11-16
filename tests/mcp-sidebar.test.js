@@ -60,7 +60,7 @@ test('精简界面保留恢复和单一页面复制区，不出现密钥输入�
  const fs=await import('node:fs');const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document;
  for(const id of ['mcpUrl','mcpToken','usageHelp','mcpFile','connectMcp','undo','redo'])assert.equal(d.getElementById(id),null);
  for(const id of ['request','editor','copyPrompt','copyMcpPrompt','loadHistory','recoveryActions','copyPage','copyDom','saveOffline'])assert(d.getElementById(id));
- assert(d.getElementById('compatibilityDetails').hidden);assert(d.getElementById('updateNotes').hidden);assert.equal(d.querySelectorAll('#copyPage').length,1);assert.equal(d.getElementById('copyPage').closest('section'),d.getElementById('copyDom').closest('section'));assert(!d.getElementById('moreDetails').contains(d.getElementById('copyDom')));dom.window.close();
+ assert(d.getElementById('compatibilityDetails').hidden);assert.equal(d.getElementById('updateNotes'),null);assert.equal(d.querySelectorAll('#copyPage').length,1);assert.equal(d.getElementById('copyPage').closest('section'),d.getElementById('copyDom').closest('section'));assert(!d.getElementById('moreDetails').contains(d.getElementById('copyDom')));dom.window.close();
 });
 
 
