@@ -102,8 +102,8 @@ export class ApiAdapter{
  if(op==='graph.simplify')current=simplifyDummies(current).plan;
  if(op==='task.merge'||op==='task.split'){const transformed=(op==='task.merge'?mergeTasks:splitTask)(current,p);current=transformed.plan;changes={...transformed.changes,durationComparison:{beforeDays:expectedDuration(before.current),afterDays:expectedDuration(current),scope:'本地CPM期望工期，不含资源日历；网站日期以回读为准'}};}
  if(op==='plan.copy'){id=crypto.randomUUID();path='/api/plans';current={...current,planNumber:p.number,planOwner:p.owner||session.actor,title:p.title||current.title,baseline:null,edges:current.edges.map(x=>({...x,completedAt:''}))};assert(p.number,'副本需要新 number');}
- if(op==='plan.update'||op==='schedule.updateInputs'){const fields={title:'title',startDate:'start',deadlineDate:'deadline'};for(const [k,v]of Object.entries(p.set||{})){assert(fields[k]&&typeof v==='string','不允许修改字段 '+k);current[fields[k]]=v;}}
- if(op==='plan.replace'){assert(p.replace===true,'全量替换需要 replace:true');current=nativePlan({...p,number:current.planNumber,owner:current.planOwner},session.actor);}
+ if(op==='plan.update'||op==='schedule.updateInputs'){const fields={title:'title',priority:'priority',startDate:'start',deadlineDate:'deadline'};for(const [k,v]of Object.entries(p.set||{})){assert(fields[k]&&typeof v==='string','不允许修改字段 '+k);current[fields[k]]=v;}}
+ if(op==='plan.replace'){assert(p.replace===true,'全量替换需要 replace:true');current=nativePlan({priority:current.priority,...p,number:current.planNumber,owner:current.planOwner},session.actor);}
  if(op==='plan.restoreSnapshot'){
  const snapshot=await this.options.loadSnapshot?.(p.backupId);assert(snapshot&&snapshot.targetId===id,'快照不存在或不属于目标计划');
  if(snapshot.actor!==session.actor)fail('PERMISSION_DENIED','不能恢复另一登录身份保存的快照');

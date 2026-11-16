@@ -25,7 +25,7 @@ export function editNodes(plan,op,p){
  validatePlan(result);return {plan:result,changes};
 }
 export function planDiff(before,after){
- const fields=['title','start','deadline','planNumber','planOwner','baseline','positions'];
+ const fields=['title','priority','start','deadline','planNumber','planOwner','baseline','positions'];
  const changedFields=fields.filter(k=>!equivalent(before?.[k],after?.[k]));
  const nodes=after?.nodes||[],old=before?.nodes||[];
  const names=nodes.filter(n=>old.some(o=>o.id===n.id&&o.name!==n.name)).length;

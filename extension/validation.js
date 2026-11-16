@@ -6,10 +6,11 @@ const flowCheck=object({nodes:{type:'array',minItems:1,maxItems:100,items:object
 flowCheck.description='用户确认的目标图纸清单（已包含本次明确同意的修改），不上传网站；默认逐字、逐编号及逐直接箭头比较，未列出的辅助节点也会被拒绝。kind区分完成成果、原分类、事件和明确同意的辅助点。works是完整的一对一确认工作/连线/估时映射，不是允许AI自行拆分工期。缺少映射不能认证开工依赖或工期。';
 const node=object({id:nonempty,name:nonempty,content:string,ownerName:string},['id','name']);
 const edgeFields={fromNodeId:nonempty,toNodeId:nonempty,estimateDays:estimate,dashed:boolean,executor:string,actualCompleteDate:string};
-const planFields={title:nonempty,number:nonempty,owner:nonempty,startDate:string,deadlineDate:string,status:{const:'draft'},nodes:{type:'array',items:node},edges:{type:'array',items:object(edgeFields,['fromNodeId','toNodeId','estimateDays'])}};
+const priority={enum:["","P1","P2","P3"]};
+const planFields={title:nonempty,priority,number:nonempty,owner:nonempty,startDate:string,deadlineDate:string,status:{const:'draft'},nodes:{type:'array',items:node},edges:{type:'array',items:object(edgeFields,['fromNodeId','toNodeId','estimateDays'])}};
 export const parameterSchemas={
  'plan.create':object({...planFields,flowCheck},['title','number']),
- 'plan.update':object({set:object({title:nonempty,startDate:string,deadlineDate:string})},['set']),
+ 'plan.update':object({set:object({title:nonempty,priority,startDate:string,deadlineDate:string})},['set']),
  'plan.replace':object({...planFields,replace:{const:true}},['title','nodes','edges','replace']),
  'plan.copy':object({number:nonempty,owner:nonempty,title:nonempty},['number']),
  'plan.delete':object({permanent:boolean}),

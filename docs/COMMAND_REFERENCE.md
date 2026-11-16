@@ -25,6 +25,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
       "type": "string",
       "minLength": 1
     },
+    "priority": {
+      "enum": [
+        "",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
     "number": {
       "type": "string",
       "minLength": 1
@@ -264,6 +272,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
           "type": "string",
           "minLength": 1
         },
+        "priority": {
+          "enum": [
+            "",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
         "startDate": {
           "type": "string"
         },
@@ -291,6 +307,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
     "title": {
       "type": "string",
       "minLength": 1
+    },
+    "priority": {
+      "enum": [
+        "",
+        "P1",
+        "P2",
+        "P3"
+      ]
     },
     "number": {
       "type": "string",
@@ -1330,6 +1354,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
           "type": "string",
           "minLength": 1
         },
+        "priority": {
+          "enum": [
+            "",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
         "startDate": {
           "type": "string"
         },
@@ -2040,6 +2072,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
                         "type": "string",
                         "minLength": 1
                       },
+                      "priority": {
+                        "enum": [
+                          "",
+                          "P1",
+                          "P2",
+                          "P3"
+                        ]
+                      },
                       "startDate": {
                         "type": "string"
                       },
@@ -2078,6 +2118,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
                       "title": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "priority": {
+                        "enum": [
+                          "",
+                          "P1",
+                          "P2",
+                          "P3"
+                        ]
                       },
                       "startDate": {
                         "type": "string"

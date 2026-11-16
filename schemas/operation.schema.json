@@ -19,6 +19,14 @@
               "type": "string",
               "minLength": 1
             },
+            "priority": {
+              "enum": [
+                "",
+                "P1",
+                "P2",
+                "P3"
+              ]
+            },
             "number": {
               "type": "string",
               "minLength": 1
@@ -265,6 +273,14 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "priority": {
+                  "enum": [
+                    "",
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
                 "startDate": {
                   "type": "string"
                 },
@@ -299,6 +315,14 @@
             "title": {
               "type": "string",
               "minLength": 1
+            },
+            "priority": {
+              "enum": [
+                "",
+                "P1",
+                "P2",
+                "P3"
+              ]
             },
             "number": {
               "type": "string",
@@ -1547,6 +1571,14 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "priority": {
+                  "enum": [
+                    "",
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
                 "startDate": {
                   "type": "string"
                 },
@@ -2500,6 +2532,14 @@
                                 "type": "string",
                                 "minLength": 1
                               },
+                              "priority": {
+                                "enum": [
+                                  "",
+                                  "P1",
+                                  "P2",
+                                  "P3"
+                                ]
+                              },
                               "startDate": {
                                 "type": "string"
                               },
@@ -2538,6 +2578,14 @@
                               "title": {
                                 "type": "string",
                                 "minLength": 1
+                              },
+                              "priority": {
+                                "enum": [
+                                  "",
+                                  "P1",
+                                  "P2",
+                                  "P3"
+                                ]
                               },
                               "startDate": {
                                 "type": "string"

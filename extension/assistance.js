@@ -19,7 +19,7 @@ export function captureSummary(){
 }
 
 export function readableDiff(changes){
- const names={title:'计划名称',planNumber:'计划编号',planOwner:'计划负责人',start:'开工日期',deadline:'截止日期',name:'名称',content:'正文',owner:'负责人',executor:'执行人',upper:'三点工期',completedAt:'完成日期',from:'起点',to:'终点',dashed:'虚线',positions:'布局',baseline:'基线',nodes:'节点',edges:'连线'};
+ const names={title:'计划名称',priority:'重要等级',planNumber:'计划编号',planOwner:'计划负责人',start:'开工日期',deadline:'截止日期',name:'名称',content:'正文',owner:'负责人',executor:'执行人',upper:'三点工期',completedAt:'完成日期',from:'起点',to:'终点',dashed:'虚线',positions:'布局',baseline:'基线',nodes:'节点',edges:'连线'};
  const value=v=>v===null||v===undefined?'无':typeof v==='string'?v:JSON.stringify(v);
  return changes.flatMap(c=>{
   const rows=[];if(c.targetId)rows.push('计划：'+c.targetId);
