@@ -136,7 +136,8 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   fail('INVALID_SCHEMA');
  })().then(reply,e=>reply({status:'failed',...(message.command?.requestId?{requestId:message.command.requestId}:{}),code:e.code||'INTERNAL_ERROR',message:e.message}));return true;
 });
-chrome.runtime.onInstalled.addListener(()=>{chrome.storage.local.remove(['xutuThemes','xutuThemeUndo','releaseCheck']);chrome.storage.session.remove('aiConnection');});
+// An upgrade invalidates only the cached release response. User storage keeps its existing keys.
+chrome.runtime.onInstalled.addListener(() => chrome.storage.local.remove('releaseCheck'));
 
 if(chrome.storage?.local){
 const mcpBridge = startMcpBridge({

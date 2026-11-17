@@ -20,7 +20,7 @@ try{
  const offline=await evaluate(`({title:document.title,table:document.querySelector('table')?.innerText,svg:document.querySelector('svg')?.getBoundingClientRect().width,dialog:document.querySelector('dialog')?.open,shadow:document.querySelector('#shadow')?.shadowRoot?.textContent,input:document.querySelector('#input')?.value,disabled:document.querySelector('button')?.disabled,inert:document.querySelector('form')?.inert,unsafe:document.body.dataset.unsafe||null,csp:document.querySelector('meta[http-equiv]')?.content})`);
  assert.equal(offline.title,'合成离线验收');assert(offline.table.includes('验收完成'));assert(offline.svg>0);assert(offline.dialog);assert(offline.shadow.includes('影子树内文'));assert.equal(offline.input,'仅property中的新值');assert(offline.disabled&&offline.inert);assert.equal(offline.unsafe,null);
  const writes=events.filter(e=>e.method==='Network.requestWillBeSent'&&e.params.request.method==='POST');assert.equal(writes.length,0);
- const boot=`import {site} from '/tests/v25-helpers.js';const web=site();web.add('P');window.qaSite=web;Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw Error('test manual-copy fallback')}}});let listeners=[];const local={};window.chrome={permissions:{request:async()=>true},runtime:{id:'a'.repeat(32),getURL:f=>location.origin+'/'+f,onInstalled:{addListener(){}},onMessage:{addListener:f=>listeners.push(f)},sendMessage:m=>new Promise(resolve=>listeners.forEach(listener=>listener(m,{id:'a'.repeat(32),url:location.origin+'/ui.html'},resolve)))},storage:{local:{get:async k=>({[k]:local[k]}),set:async obj=>Object.assign(local,obj),remove:async k=>{delete local[k]}}},tabs:{get:async id=>({id,url:'https://plan.fpgabbs.cn/'}),query:async()=>[{id:123,title:'合成验收网页',url:'https://plan.fpgabbs.cn/',active:true}],sendMessage:async(id,m)=>{if(m.kind==='inspect')return {origin:'https://plan.fpgabbs.cn',anchors:{},activeTarget:{id:'P'}};try{return {ok:true,data:await web.request(m.path,m.method,m.body)};}catch(e){return {ok:false,code:e.code,message:e.message};}}},scripting:{executeScript:async options=>[{result:{available:false}}]},userScripts:{getScripts:async()=>[]}};window.fetch=async()=>({status:200,url:'https://github.com/mkiekuum/xutu-control-terminal/releases/tag/v99.0.0',body:null});await import('/extension/background.js');await import('/extension/ui.js');window.qaReady=true;`;
+ const boot=`import {site} from '/tests/v25-helpers.js';const web=site();web.add('P');window.qaSite=web;Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw Error('test manual-copy fallback')}}});let listeners=[];const local={};window.chrome={permissions:{request:async()=>true},runtime:{id:'a'.repeat(32),getURL:f=>location.origin+'/'+f,onInstalled:{addListener:f=>{window.qaInstalled=f}},onMessage:{addListener:f=>listeners.push(f)},sendMessage:m=>new Promise(resolve=>listeners.forEach(listener=>listener(m,{id:'a'.repeat(32),url:location.origin+'/ui.html'},resolve)))},storage:{local:{get:async k=>({[k]:local[k]}),set:async obj=>Object.assign(local,obj),remove:async k=>{delete local[k]}}},tabs:{get:async id=>({id,url:'https://plan.fpgabbs.cn/'}),query:async()=>[{id:123,title:'合成验收网页',url:'https://plan.fpgabbs.cn/',active:true}],sendMessage:async(id,m)=>{if(m.kind==='inspect')return {origin:'https://plan.fpgabbs.cn',anchors:{},activeTarget:{id:'P'}};try{return {ok:true,data:await web.request(m.path,m.method,m.body)};}catch(e){return {ok:false,code:e.code,message:e.message};}}},scripting:{executeScript:async options=>[{result:{available:false}}]},userScripts:{getScripts:async()=>[]}};window.fetch=async()=>({status:200,url:'https://github.com/mkiekuum/xutu-control-terminal/releases/tag/v99.0.0',body:null});await import('/extension/background.js');await import('/extension/ui.js');window.qaReady=true;`;
  server=http.createServer(async(req,res)=>{try{const name=new URL(req.url,'http://localhost').pathname;if(name==='/boot.js'){res.setHeader('Content-Type','text/javascript');res.end(boot);return;}if(name==='/ui.html'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end((await fs.readFile(path.join(root,'extension/ui.html'),'utf8')).replace('href="ui.css"','href="/extension/ui.css"').replace('src="ui.js"','src="/boot.js"'));return;}if(!/^\/(extension|tests)\/[\w.-]+\.(js|css)$/.test(name)){res.writeHead(404).end();return;}res.setHeader('Content-Type',name.endsWith('.css')?'text/css':'text/javascript');res.end(await fs.readFile(path.join(root,name.slice(1))));}catch{res.writeHead(500).end();}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));await send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/ui.html'});
  for(let i=0;i<50;i++){if(await evaluate('window.qaReady===true'))break;await sleep(100);}await sleep(150);
@@ -37,13 +37,33 @@ try{
     details.open=true;
     const editor=rect('editor'),execute=rect('execute');
     details.open=false;
-    return {closed,aligned:mcp.left===request.left&&mcp.top===ordinary.top&&mcp.right<ordinary.left&&Math.abs(mcp.width-ordinary.width)<=1&&mcp.height===ordinary.height,editorAligned:editor.left===request.left&&editor.width===request.width&&execute.left===mcp.left&&execute.height===mcp.height,overflow:document.documentElement.scrollWidth>innerWidth};
+    function fills(panel, ids) {
+     const group=by(panel);
+     group.hidden=false;
+     const bounds=by(ids[0]).parentElement.getBoundingClientRect();
+     const buttons=ids.map(rect);
+     const ok=Math.abs(buttons[0].left-bounds.left)<1 && Math.abs(buttons.at(-1).right-bounds.right)<1 && buttons.every(b=>Math.abs(b.width-buttons[0].width)<1 && b.top===buttons[0].top);
+     group.hidden=true;
+     return ok;
+    }
+    const lowerPanels=fills('historyBody',['copyHistory']) && fills('pageToolsPanel',['copyDom','saveOffline']);
+    return {closed,lowerPanels,aligned:mcp.left===request.left&&mcp.top===ordinary.top&&mcp.right<ordinary.left&&Math.abs(mcp.width-ordinary.width)<=1&&mcp.height===ordinary.height,editorAligned:editor.left===request.left&&editor.width===request.width&&execute.left===mcp.left&&execute.height===mcp.height&&Math.abs(execute.width-editor.width)<1,overflow:document.documentElement.scrollWidth>innerWidth};
    })()`);
-   assert.deepEqual(layout,{closed:true,aligned:true,editorAligned:true,overflow:false},width+'px '+theme);
+   assert.deepEqual(layout,{closed:true,lowerPanels:true,aligned:true,editorAligned:true,overflow:false},width+'px '+theme);
   }
  }
  await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});
  await send('Emulation.setEmulatedMedia',{features:[]});
+ const upgrade=await evaluate(`(async()=>{
+  const keep={xutuThemes:{mode:'stored'},xutuThemeUndo:['previous'],optimizeSidebar:true,customPreference:'unchanged'};
+  await chrome.storage.local.set({...keep,releaseCheck:{stale:true}});
+  await window.qaInstalled({reason:'update'});
+  for(const [key,value] of Object.entries(keep)){
+   if(JSON.stringify((await chrome.storage.local.get(key))[key])!==JSON.stringify(value))return false;
+  }
+  return !(await chrome.storage.local.get('releaseCheck')).releaseCheck;
+ })()`);
+ assert(upgrade,'updating must preserve user settings');
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
  const banner=await evaluate(`({visible:!document.getElementById('updateBanner').hidden,version:document.getElementById('updateAdvice').textContent,url:document.getElementById('installUpdate').href,collapsed:!document.getElementById('editor').closest('details').open})`);

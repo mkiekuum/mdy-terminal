@@ -66,8 +66,17 @@ textarea { display: block; resize: vertical; line-height: 1.5; }
 textarea::placeholder { color: var(--muted); }
 #editor { font: 13px/1.6 Consolas, "Microsoft YaHei UI", monospace; }
 .actions { margin-top: 8px; }
-.actions > button { flex: 1 1 auto; }
-.workspace .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.actions > button { flex: 1 1 0; }
+.actions, .button-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.workspace .actions { margin-top: 10px; }
+.actions button, .button-row button, .tool-bar button { width: 100%; min-width: 0; text-align: center; }
+.settings .setting-row:has(button:not([hidden])) { display: grid; grid-template-columns: minmax(0, 1fr); }
+.settings .setting-row button, #copyResult { width: 100%; text-align: center; }
 .workspace .actions button { min-height: 36px; padding: 6px; font-weight: 600; }
 #copyPrompt { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); }
 .workspace textarea { padding: 9px 10px; }
@@ -83,7 +92,7 @@ textarea::placeholder { color: var(--muted); }
 .setting-row button { font-size: 12px; min-height: 28px; }
 input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
 .login-fields { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 8px 0; }
-.login-fields .actions, .login-fields .hint { grid-column: 2; margin: 0; }
+.login-fields .actions, .login-fields .hint { grid-column: 1 / -1; margin: 0; }
 #changeSummary { max-height: 35vh; overflow: auto; }
 main { overflow-wrap: anywhere; }
 #message { white-space: pre-line; border-inline-start: 3px solid var(--accent); padding: 5px 8px; background: var(--surface); }
