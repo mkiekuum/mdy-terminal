@@ -38,6 +38,7 @@
 ## 操作与权限
 
 - 当前登录网站身份是唯一授权来源。创建默认草稿，不自动提交审核；审核通过/退回仅真实管理员可做。已有baseline或完成进度的合并拆分会拒绝，以防丢失状态。
+- 计划连线日期选择器对应 progress.update 和 progress.complete。按当前计划的编辑权、已审核状态和固定稿预览，执行时重新核对，以当前 revision 向计划的 /change 接口保存并回读。
 - 工作任务表的canAssign/canComplete为该任务权限依据；普通计划所有者权限不能替代这些字段。
 - 修改前刷新context，明确target.id和target.version；完成后用plan.get/context回读。批量步骤依赖失败则跳过，不把部分成功说成全部成功。
 - 执行按钮默认直接执行。JSON/API支持校验和预览；requestId去重，可选backup:true快照。未知写入或超时须先查状态，不盲目换ID重试。

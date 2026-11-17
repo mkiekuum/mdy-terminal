@@ -18,6 +18,30 @@ export async function canEditPlan(request, record, session) {
  return plans.some(plan => plan.id === record.id && plan.assistantEditable === true);
 }
 
+// The plan editor's date picker saves the edge through the ordinary plan change API.
+function setActualCompletion(plan, review, params) {
+ assert(plan.baseline && review?.status === 'approved', '请先确认固定稿并通过审核，再登记实际完成日期');
+ const edge = plan.edges.find(e => e.from === params.fromNodeId && e.to === params.toNodeId);
+ assert(edge, '连线不存在');
+ assert(validDate(params.actualCompleteDate), '实际完成日期无效');
+ edge.completedAt = params.actualCompleteDate;
+
+ const completed = plan.edges.filter(e => e.completedAt);
+ if (!completed.length) return;
+ assert(plan.start && validDate(plan.start), '请先选择有效的项目开工日期');
+ const predecessors = new Map();
+ for (const e of plan.edges) {
+  if (!predecessors.has(e.to)) predecessors.set(e.to, []);
+  predecessors.get(e.to).push(e);
+ }
+ for (const e of completed) {
+  const incoming = predecessors.get(e.from) || [];
+  assert(e.completedAt >= plan.start, '实际完成日期不能早于开工日期');
+  assert(incoming.every(p => p.completedAt), '连线 ' + e.from + '→' + e.to + ' 的前置工作尚未全部完成');
+  assert(incoming.every(p => p.completedAt <= e.completedAt), '连线 ' + e.from + '→' + e.to + ' 的完成日期早于前置工作完成日期');
+ }
+}
+
 export class ApiAdapter{
  constructor(request,options={}){this.request=request;this.options=options;}
  async resolve(t={}){if(t.id)return t.id;assert(typeof t.number==='string','target.id 或 number 必填');const items=(await this.request('/api/plans')).filter(p=>p.planNumber===t.number&&(!t.owner||p.planOwner===t.owner));if(items.length!==1)fail(items.length?'TARGET_AMBIGUOUS':'TARGET_NOT_FOUND');return items[0].id;}
@@ -90,8 +114,9 @@ export class ApiAdapter{
  if(op==='progress.read'||op==='review.status')return {data:op==='review.status'?before.review:current.edges.map(x=>({from:x.from,to:x.to,completedAt:x.completedAt})),serverVerified:true};
  if(op==='history.list')fail('UNSUPPORTED_BY_SITE','当前前端已禁用逐次编辑历史读取；不能伪造历史');
  canManage = session.role === 'admin' || current.planOwner === session.actor;
+ const progressEdit = op === 'progress.update' || op === 'progress.complete';
  if (!canManage) {
-  const contentEdit = batchOperations.includes(op) || op === 'plan.batch';
+  const contentEdit = batchOperations.includes(op) || op === 'plan.batch' || progressEdit;
   if (!contentEdit || !await canEditPlan(this.request, before, session)) fail('PERMISSION_DENIED');
  }
  trace.id=id;trace.before=clone(before);
@@ -126,7 +151,8 @@ export class ApiAdapter{
  }
  if(['node.batchUpdate','node.renumber'].includes(op)){const transformed=editNodes(current,op,p);current=transformed.plan;changes=transformed.changes;}
  if(op.startsWith('node.')&&!['node.batchUpdate','node.renumber'].includes(op)){let index=current.nodes.findIndex(n=>n.id===p.id);if(op==='node.create'){current.nodes.push({id:p.id,name:p.name,content:p.content||'',owner:p.ownerName||''});}else if(op==='node.reorder'){assert(Array.isArray(p.ids)&&p.ids.length===current.nodes.length&&new Set(p.ids).size===p.ids.length&&p.ids.every(x=>current.nodes.some(n=>n.id===x)),'ids 必须是节点全集排列');current.nodes=p.ids.map(id=>current.nodes.find(n=>n.id===id));}else{assert(index>=0,'节点不存在');if(op==='node.remove'){assert(!current.edges.some(x=>x.from===p.id||x.to===p.id),'先删除关联连线');current.nodes.splice(index,1);if(current.positions)delete current.positions[p.id];}else{for(const [k,v]of Object.entries(p.set||{})){assert(['name','content','owner'].includes(k)&&typeof v==='string','节点字段无效');current.nodes[index][k]=v;}}}}
- if(op.startsWith('edge.')||op.startsWith('progress.')){let i=current.edges.findIndex(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);if(op==='edge.create')current.edges.push(edge(p));else{assert(i>=0,'连线不存在');if(op==='edge.remove')current.edges.splice(i,1);else if(op.startsWith('progress.')){assert(typeof p.actualCompleteDate==='string','需要 actualCompleteDate');current.edges[i].completedAt=p.actualCompleteDate;}else{const x=current.edges[i];if(p.estimateDays)x.upper=edge({...p}).upper;if(p.dashed!==undefined){assert(typeof p.dashed==='boolean','dashed 必须 boolean');x.dashed=p.dashed;}if(p.executor!==undefined)x.executor=p.executor;}}}
+ if(progressEdit) setActualCompletion(current, before.review, p);
+ if(op.startsWith('edge.')){let i=current.edges.findIndex(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);if(op==='edge.create')current.edges.push(edge(p));else{assert(i>=0,'连线不存在');if(op==='edge.remove')current.edges.splice(i,1);else{const x=current.edges[i];if(p.estimateDays)x.upper=edge({...p}).upper;if(p.dashed!==undefined){assert(typeof p.dashed==='boolean','dashed 必须 boolean');x.dashed=p.dashed;}if(p.executor!==undefined)x.executor=p.executor;}}}
  }
  if(op==='edge.update'){const changed=current.edges.find(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);assert(!changed.dashed||changed.upper.split('-').every(x=>Number(x)===0),'虚任务必须是零耗时，请明确设置estimateDays三个0');}
  const mergePreview = e.mode === 'preview' && (op === 'task.merge' ||

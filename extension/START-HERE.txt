@@ -1,4 +1,4 @@
-序图终端 v4.2.1
+序图终端 v4.3.0
 1. 解压 chrome.zip 到固定文件夹，里面应直接有 manifest.json。
 2. Chrome 打开 chrome://extensions，开启开发者模式，加载已解压的扩展程序。
 3. 登录序图网站，复制给 MCP AI，需求可以留空。手动执行时展开「JSON 指令」。
