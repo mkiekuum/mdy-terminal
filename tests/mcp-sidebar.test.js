@@ -85,5 +85,18 @@ test('底部工具互斥展开、重复点击收回，历史诊断可主动打�
  const fs=await import('node:fs'),{setupToolPanels}=await import('../extension/ui-panels.js');const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document,panels=setupToolPanels(d);
  d.getElementById('pageTools').click();assert(!d.getElementById('pageToolsPanel').hidden);assert.equal(d.getElementById('pageTools').getAttribute('aria-expanded'),'true');
  d.getElementById('moreToggle').click();assert(d.getElementById('pageToolsPanel').hidden);assert(!d.getElementById('moreDetails').hidden);d.getElementById('moreToggle').click();assert(d.getElementById('moreDetails').hidden);
+ const history=d.getElementById('historyToggle'),body=d.getElementById('historyBody');
+ assert(body.hidden);
+ assert.equal(body.querySelectorAll('button').length,1);
+ assert(body.contains(d.getElementById('copyHistory')));
+ history.click();
+ assert.equal(history.getAttribute('aria-expanded'),'true');
+ assert(!body.hidden);
+ history.click();
+ assert(body.hidden);
+ history.click();
+ d.getElementById('pageTools').click();
+ assert(body.hidden);
+ assert.equal(history.getAttribute('aria-expanded'),'false');
  panels.show('pageToolsPanel');assert(!d.getElementById('pageToolsPanel').hidden);assert.equal(d.getElementById('pageTools').getAttribute('aria-expanded'),'true');assert.equal(d.querySelectorAll('#pageToolsPanel details,#historyBody details').length,0);dom.window.close();
 });

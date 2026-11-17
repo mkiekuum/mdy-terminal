@@ -1,5 +1,5 @@
 export function setupToolPanels(doc, onChange = () => {}){
- const pairs=[['pageTools','pageToolsPanel'],['moreToggle','moreDetails']];
+ const pairs=[['historyToggle','historyBody'],['pageTools','pageToolsPanel'],['moreToggle','moreDetails']];
  function show(id){for(const [button,panel] of pairs){doc.getElementById(panel).hidden=panel!==id;doc.getElementById(button).setAttribute('aria-expanded',String(panel===id));}
   onChange(id);
  }

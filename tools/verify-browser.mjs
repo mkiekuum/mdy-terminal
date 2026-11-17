@@ -80,6 +80,8 @@ try{
   const $=id=>document.getElementById(id),posts=()=>qaSite.calls.filter(c=>c.method==='POST').length;
   qaSite.records.get('P').current.deadline='2026-12-01';qaSite.records.get('P').revision++;
   const before=posts();
+  $('historyToggle').onclick();
+  if ($('historyBody').hidden || !$('moreDetails').hidden || !$('pageToolsPanel').hidden) throw Error('history panel did not open exclusively');
   await $('copyHistory').onclick();
   const copied=$('manualCopyText').value;
   const history=JSON.parse(copied.slice(copied.indexOf('\\n')+1));

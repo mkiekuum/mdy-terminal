@@ -48,8 +48,11 @@
     <summary>执行结果</summary><button id="copyResult" class="text-button">复制结果</button><pre id="output"></pre>
   </details>
   <nav class="tool-bar" aria-label="工具">
-    <button id="copyHistory">复制全部历史记录</button><button id="pageTools">页面复制</button><button id="moreToggle"><span id="moreLabel">设置</span></button>
+    <button id="historyToggle">历史记录</button><button id="pageTools">页面复制</button><button id="moreToggle"><span id="moreLabel">设置</span></button>
   </nav>
+  <section id="historyBody" class="card" aria-label="历史记录" hidden>
+    <div class="button-row"><button id="copyHistory">复制全部历史记录</button></div>
+  </section>
   <section id="pageToolsPanel" class="card" aria-label="页面复制" hidden>
     <div class="button-row"><button id="copyDom">复制 DOM</button><button id="saveOffline">下载 HTML</button></div>
     <p id="exportStatus" class="hint" role="status"></p><pre id="exportDetails" hidden></pre>
