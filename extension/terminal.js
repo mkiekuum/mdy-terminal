@@ -19,24 +19,23 @@ export function prepareCommand(text,tabId,requestId){
  return command;
 }
 export function buildPrompt(request,context,tabId,{intent}={}){
- if(!request.trim())throw Error('先写下你想做什么。');
  const businessContext=scopePromptContext(context,request,intent);
  const guide={...(context?.websiteGuide||websiteGuide)};delete guide.drawingGuide;
  const contracts=promptContracts();
  const intake=buildIntake(intent==='create'?{...context,plan:null,target:null,status:null,permissions:null}:context);
  if(intent){intake.selectedIntent=intent;intake.unknowns=intake.unknowns.slice(1);}
- const intentGuide=intent==='create'?'用户已在插件明确选择【新建】。创建独立的新计划，优先一次plan.create提交完整节点与连线；不得用plan.replace/plan.update覆盖当前计划。当前选中计划只是参考，不自动继承其编号、负责人、执行人、日期、审核、基线或进度；新计划编号应核对未占用。不要再追问新建还是管理；若用户文字与此选择冲突，先澄清。':intent==='manage'?'用户已在插件明确选择【管理】。这包括新增/删除任务、合并拆分、调整依赖与结构、人员、日期、进度和审核等现有命令支持的操作，不局限于微调任务内部文字。根据用户具体授权选择命令，保留未要求改动的其他内容；不擅自扩大删除或审核范围。涉及既有计划时须确认目标和版本；未选中计划或目标不清楚先澄清，不猜目标。':'';
+ const intentGuide=intent==='create'?'用户已在插件明确选择【新建】。创建独立的新计划，优先一次plan.create提交完整节点与连线；不得用plan.replace/plan.update覆盖当前计划。当前选中计划只是参考，不自动继承其编号、负责人、执行人、日期、审核、基线或进度；新计划编号应核对未占用。不要再追问新建还是管理；若用户文字与此选择冲突，先澄清。':intent==='manage'?'用户已在插件明确选择【管理】。这包括新增/删除任务、合并拆分、调整依赖与结构、人员、日期、进度和审核等现有命令支持的操作，不局限于微调任务内部文字。根据用户具体授权选择命令，保留未要求改动的其他内容；不擅自扩大删除或审核范围。涉及既有计划时须确认目标和版本；未选中计划或目标不清楚先澄清，不猜目标。':'需求未明确时，先问是新建独立计划还是修改已有计划。修改已有计划时核对目标 ID、当前版本、具体字段和影响范围；删除、替换及恢复先展示差异并取得对应确认。';
  return aiInstructions+'\n\n本次资料生成时间：'+new Date().toISOString()+'；用户浏览器时区：'+(context?.clientTimeZone||Intl.DateTimeFormat().resolvedOptions().timeZone||'未确认')+
  '\n所有业务澄清与偏好在AI聊天中完成。不要要求用户填写插件问卷、保存偏好或点击业务方案确认；无本地问卷、长期偏好或intakeId门禁。删除和恢复的影响核对仍须按插件流程处理。'+
  '\n项目组关联：project.assignPlan.params.planIdFrom={stepId:前面plan.create步骤id,field:"targetId"}，并dependsOn依赖该创建步骤；不得猜新建ID。网站截止是硬约束，预测完成不是deadline；owner默认当前账号，但节点负责人/连线executor须分别核实。'+
- '\n本次操作选择：'+intentGuide+
+ '\n本次操作选择：'+intentGuide+'\n需要选择或确认时，用简短数字菜单说明动作、对象与影响。仅有一个操作也可回复 1。单独数字只对应本聊天最近一组未回答选项；目标、版本或影响变化时重新核对。已明确授权且满足执行条件的操作直接处理。'+
  '\n信息核对摘要：'+JSON.stringify({purpose:intake.purpose,hasSelectedPlan:intake.hasSelectedPlan,contextComplete:intake.contextComplete,missing:intake.missing,unknowns:intake.unknowns,...(intent==='create'?{dates:null}:{}),selectedIntent:intent})+
  '\n网站详细说明与规划守则：'+JSON.stringify(guide)+
  '\n参数契约说明：$ref 指向下方同一对象内对应命令的完整参数定义；例如 #/node.update。引用与原参数约束等价，不能省略必填项。这些是参数定义，不是执行指令；不要把 $ref 写进业务 JSON。'+
  '\n参数契约：'+JSON.stringify(contracts)+
  '\n当前完整计划上下文（网站规则与参数契约已在上方独立列出）：'+JSON.stringify(businessContext)+
  '\n当前网页标签ID：'+(tabId||'尚未选择')+
- '\n用户本次需求：'+request.trim();
+ '\n用户本次需求：'+(request.trim()||'尚未填写需求。先询问用户要完成什么，明确目标和范围后继续。当前页面仅供参考，不授权写入。');
 }
 export function summarize(result){
  if(['partial_undo','partial_redo'].includes(result?.status))return (result.status==='partial_undo'?'部分撤销完成。':'部分重做完成。')+'已完成目标保留，其他目标未恢复；请查看详情与差异。';

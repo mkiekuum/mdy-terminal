@@ -16,17 +16,15 @@ if (chrome.extension?.getViews({type: 'popup'}).includes(window)) {
  document.documentElement.classList.add('popup');
 }
 let loginGeneration = 0;
-const toolPanels = setupToolPanels(document, panel => {
+setupToolPanels(document, panel => {
  closeLogin();
  if (panel === 'moreDetails') loadLoginStatus(false).catch(e => message(e.message, true));
 });
-let intent='create',updateReport=null,lastCommand=null,lastResult=null,pendingAction=null;
+let updateReport=null,lastCommand=null,lastResult=null,pendingAction=null;
 function review(notice,details,action){$('reviewPanel').hidden=false;$('reviewNotice').textContent=notice;$('reviewDiff').textContent=typeof details==='string'?details:JSON.stringify(details,null,2);const selected=openingTabId;pendingAction=async()=>{const target=await send({kind:'currentPlanTab'});if(selected!==target.tabId)throw Error('网页选择已变化，请重新核对影响。');await action();};}
 $('cancelAction').onclick=()=>{pendingAction=null;$('reviewPanel').hidden=true;message('已保留网站现状。');};
 $('confirmAction').onclick=()=>busy('confirmAction',async()=>{const action=pendingAction;pendingAction=null;$('reviewPanel').hidden=true;if(action)await action();});
 chrome.runtime.onMessage.addListener((m,sender)=>{if(sender.id===chrome.runtime.id&&m.kind==='executionPhase'&&m.requestId===lastRequestId&&$('execute').disabled){const labels={checking:'正在检查网站最新内容…',submitting:'正在提交修改，请勿重复执行…',verifying:'网站已响应，正在回读核对…'};if(labels[m.phase])message(labels[m.phase]);}});
-function chooseIntent(value){intent=value;$('createPlan').setAttribute('aria-pressed',String(value==='create'));$('managePlan').setAttribute('aria-pressed',String(value==='manage'));$('requestLabel').textContent=value==='create'?'计划需求':'计划调整';$('request').placeholder=value==='create'?'目标与要求':'想调整什么？';}
-$('createPlan').onclick=()=>chooseIntent('create');$('managePlan').onclick=()=>chooseIntent('manage');
 const tabId=()=>selectedPlanTab||undefined;
 const message=(text,error=false)=>{$('message').textContent=text;$('message').dataset.error=String(error);};
 const send=async input=>{const result=await chrome.runtime.sendMessage(input);if(!result)throw Error('插件未响应，请重新加载插件。');return result;};
@@ -34,7 +32,7 @@ const updatePromise=(async()=>{
  try{const result=await send({kind:'updates'});if(!['available','current','ahead','unknown'].includes(result.status))throw Error('UPDATE_UNAVAILABLE');updateReport=result;}
  catch{updateReport={status:'unknown',currentVersion:VERSION,reason:'请确认已重新加载插件，并检查网络后重新打开。'};}
  $('updateStatus').textContent='v'+VERSION+' · '+({available:'新版 v'+updateReport.latestVersion,current:'已是最新版',ahead:'高于当前正式版',unknown:'暂无法检查更新'}[updateReport.status]);
- if(updateReport.status==='available'&&updateReport.releaseUrl?.startsWith('https://github.com/mkiekuum/xutu-control-terminal/releases/')){$('installUpdate').href=updateReport.releaseUrl;$('installUpdate').hidden=false;}
+ if(updateReport.status==='available'&&updateReport.releaseUrl?.startsWith('https://github.com/mkiekuum/xutu-control-terminal/releases/')){$('updateAdvice').textContent='建议更新至 v'+updateReport.latestVersion;$('updateBanner').hidden=false;$('installUpdate').href=updateReport.releaseUrl;$('installUpdate').hidden=false;}
  $('moreLabel').textContent=updateReport.status==='available'?'设置 · 新版':'设置';$('moreLabel').dataset.update=String(updateReport.status==='available');
 })();
 const envelope=(op,target)=>({protocol:'xutu.command/v1',requestId:crypto.randomUUID(),...(tabId()?{tabId:tabId()}:{}),steps:[{id:'read',op,...(target?{target}:{})}]});
@@ -58,17 +56,16 @@ async function refresh(){
  selectedPlanTab=Number(found.tabId)||undefined;
  openingTabId=selectedPlanTab;
  if(!tabId()){$('connection').textContent='请切到序图页';document.querySelector('.connection-strip').dataset.state='error';++compatibilityGeneration;showCompatibility(null);return;}
- const session=await send({kind:'run',command:envelope('site.session')});if(generation!==refreshGeneration)return;$('connection').textContent=session.status==='success'?'已连接当前页':'请检查网站登录';document.querySelector('.connection-strip').dataset.state=session.status==='success'?'connected':'error';await checkCompatibility();await historyUI.load(false).catch(()=>{});
+ const session=await send({kind:'run',command:envelope('site.session')});if(generation!==refreshGeneration)return;$('connection').textContent=session.status==='success'?'已连接当前页':'请检查网站登录';document.querySelector('.connection-strip').dataset.state=session.status==='success'?'connected':'error';await checkCompatibility();
 }
 $('openSite').onclick=()=>busy('openSite',async()=>{await send({kind:'openSite'});});
 $('copyPrompt').onclick=()=>busy('copyPrompt',async()=>{
- if(!$('request').value.trim())throw Error('先写下你想做什么。');
- const selected=tabId(),selectedIntent=intent,requestText=$('request').value,context=await readContext(projectGroupMode(requestText,selectedIntent));
- if(selected!==tabId()||selectedIntent!==intent||requestText!==$('request').value)throw Error('操作选择或需求已变化，请重新复制以获取对应资料。');
- await clipboard(buildPrompt(requestText,context,selected,{intent:selectedIntent}));message(intent==='create'?'已复制新建提示词，发给 AI 生成独立计划。':context?.plan?(context.complete?'已复制管理提示词与当前计划资料。':'已复制；部分状态未能读取，提示词中已注明。'):'已复制；涉及既有计划时，请先在网站选中目标，AI 会核对。');
+ const selected=tabId(),requestText=$('request').value,context=await readContext(projectGroupMode(requestText));
+ if(selected!==tabId()||requestText!==$('request').value)throw Error('操作选择或需求已变化，请重新复制以获取对应资料。');
+ await clipboard(buildPrompt(requestText,context,selected));message('普通 AI 提示词已复制。');
 });
 function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';$('helpPrivacy').hidden=result.status==='success';message([summarize(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
-async function execute(command){let result;try{result=await send({kind:'run',command});}catch{result={requestId:command.requestId,status:'failed',code:'TIMEOUT_RESULT_UNKNOWN',message:'连接中断，执行结果尚未确认。请只读核对，不要重新提交。'};}showResult(result,command);await historyUI.load(false).catch(()=>{});if(result.code==='HISTORY_SNAPSHOT_INCOMPLETE'||result.steps?.some(x=>x.code==='HISTORY_SNAPSHOT_INCOMPLETE'))await historyUI.inspectPending();}
+async function execute(command){let result;try{result=await send({kind:'run',command});}catch{result={requestId:command.requestId,status:'failed',code:'TIMEOUT_RESULT_UNKNOWN',message:'连接中断，执行结果尚未确认。请只读核对，不要重新提交。'};}showResult(result,command);if(result.code==='HISTORY_SNAPSHOT_INCOMPLETE'||result.steps?.some(x=>x.code==='HISTORY_SNAPSHOT_INCOMPLETE'))await historyUI.inspectPending();}
 function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['node.remove','edge.remove'].includes(c.op)));}
 $('execute').onclick=()=>busy('execute',async()=>{
  lastRequestId=await stableRequestId($('editor').value);
@@ -89,12 +86,26 @@ $('copyHelp').onclick=()=>busy('copyHelp',async()=>{await clipboard(helpPackage(
 $('diagnoseRequest').onclick=()=>busy('diagnoseRequest',async()=>{if(!lastResult?.requestId)throw Error('没有可核对的请求。');const c=envelope('system.status');c.steps[0].params={requestId:lastResult.requestId};const status=data(await send({kind:'run',command:c}));const pending=await historyUI.inspectPending();$('output').textContent=JSON.stringify({original:lastResult,requestStatus:status,pending},null,2);message('已只读检查原请求与历史；没有重发任何写入。');});
 $('editor').addEventListener('input',()=>{pendingAction=null;$('reviewPanel').hidden=true;try{$('changeSummary').textContent=commandSummary(prepareCommand($('editor').value,tabId(),'preview-only'));}catch{$('changeSummary').textContent=$('editor').value.trim()?'指令格式待补全':'';}});
 $('copyResult').onclick=event=>{event.preventDefault();busy('copyResult',async()=>{await clipboard($('output').textContent);message('结果已复制。');});};
-const helpers={$ ,showTool:toolPanels.show,tabId,send,message,busy,clipboard,intent:()=>intent,envelope,data,readContext,chooseIntent,review,showResult,attachDiagnosis:report=>{if(lastResult)lastResult={...lastResult,pendingDiagnosis:report};}};
+const helpers={$,tabId,send,message,busy,clipboard,envelope,data,attachDiagnosis:report=>{if(lastResult)lastResult={...lastResult,pendingDiagnosis:report};}};
 const historyUI=setupHistory(helpers);setupExport(helpers);
 window.addEventListener('unhandledrejection',event=>message(event.reason?.message||'连接异常，请重新打开插件。',true));
 refresh().catch(e=>{$('connection').textContent='暂未连接';document.querySelector('.connection-strip').dataset.state='error';message(e.message,true);});
 
-$('copyMcpPrompt').onclick=()=>busy('copyMcpPrompt',async()=>{const text=$('request').value,selected=tabId(),selectedIntent=intent;if(!text.trim())throw Error('先写下你想做什么。');if(!selected)throw Error('请先切到目标序图页');if(!await chrome.permissions.request({origins:['http://127.0.0.1/*']}))throw Error('需允许访问本机服务才能连接 MCP');const {mcpConnection:previous}=await chrome.storage.local.get('mcpConnection'),c=createConnection(selected,previous);await chrome.storage.local.set({mcpConnection:c});const ctx=await readContext(projectGroupMode(text,selectedIntent));if(selected!==tabId()||selectedIntent!==intent||text!==$('request').value)throw Error('需求或目标变化，请重新复制');await clipboard(mcpPrompt(buildPrompt(text,ctx,selected,{intent:selectedIntent}),c));message('已复制 MCP 提示词。');});
+$('copyMcpPrompt').onclick = () => busy('copyMcpPrompt', async () => {
+ const text = $('request').value, selected = tabId();
+ let connection;
+ if (selected) {
+  const allowed = await chrome.permissions.request({origins:['http://127.0.0.1/*']});
+  if (!allowed) throw Error('需允许访问本机服务才能连接 MCP');
+  const {mcpConnection:previous} = await chrome.storage.local.get('mcpConnection');
+  connection = createConnection(selected, previous);
+  await chrome.storage.local.set({mcpConnection:connection});
+ }
+ const context = await readContext(projectGroupMode(text));
+ if (selected !== tabId() || text !== $('request').value) throw Error('需求或目标变化，请重新复制');
+ await clipboard(mcpPrompt(buildPrompt(text, context, selected), connection));
+ message(selected ? '已复制 MCP 提示词。' : '已复制提示词。打开序图页后可配对 MCP。');
+});
 async function refreshMcpSettings() {
  const {mcpConnection, mcpBridgeStatus, optimizeSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'optimizeSidebar']);
  $('optimizeSidebar').checked = !!optimizeSidebar;

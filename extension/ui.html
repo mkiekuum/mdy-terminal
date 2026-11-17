@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="ui.css">
 </head>
 <body>
+<aside id="updateBanner" class="setting-row" hidden><strong id="updateAdvice"></strong><a id="installUpdate" target="_blank" rel="noopener noreferrer" hidden>下载新版 ↗</a></aside>
 <header>
   <div class="identity">
     <h1>序图终端</h1>
@@ -22,23 +23,19 @@
     <section class="card compose-card">
       <div class="field-heading">
         <label id="requestLabel" for="request">计划需求</label>
-        <div class="intent-switch" role="group" aria-label="计划操作">
-          <button id="createPlan" aria-pressed="true">新建</button>
-          <button id="managePlan" aria-pressed="false">管理</button>
-        </div>
       </div>
-      <textarea id="request" rows="3" placeholder="目标与要求"></textarea>
+      <textarea id="request" rows="3" placeholder="目标与要求（可留空）"></textarea>
       <div class="actions prompt-actions">
-        <button id="copyPrompt" class="primary">复制给 AI</button>
-        <button id="copyMcpPrompt">复制给 MCP AI</button>
+        <button id="copyMcpPrompt" class="primary">复制给 MCP AI</button>
       </div>
     </section>
-    <section class="card execute-card">
-      <div class="field-heading"><label for="editor">执行指令</label></div>
-      <textarea id="editor" rows="3" spellcheck="false" placeholder="粘贴 JSON 指令"></textarea>
+    <details class="card execute-card">
+      <summary>JSON 指令</summary>
+      <button id="copyPrompt" class="text-button">复制普通 AI 提示词</button>
+      <textarea id="editor" aria-label="JSON 指令" rows="3" spellcheck="false" placeholder="粘贴 JSON 指令"></textarea>
       <p id="changeSummary" class="hint" role="status"></p>
       <div class="actions"><button id="execute" class="primary">执行指令</button></div>
-    </section>
+    </details>
   </div>
   <section id="reviewPanel" class="card" hidden>
     <h2>核对改动</h2><p id="reviewNotice"></p><pre id="reviewDiff"></pre>
@@ -51,22 +48,12 @@
     <summary>执行结果</summary><button id="copyResult" class="text-button">复制结果</button><pre id="output"></pre>
   </details>
   <nav class="tool-bar" aria-label="工具">
-    <button id="loadHistory">历史记录</button><button id="pageTools">页面复制</button><button id="moreToggle"><span id="moreLabel">设置</span></button>
+    <button id="copyHistory">复制全部历史记录</button><button id="pageTools">页面复制</button><button id="moreToggle"><span id="moreLabel">设置</span></button>
   </nav>
-  <section id="historyBody" class="card" hidden>
-    <h2>最近记录 <span id="historyCount" class="hint"></span></h2>
-    <p id="historyNotice" class="hint"></p>
-    <label>记录<select id="historySelect"></select></label>
-    <label>状态位置<select id="historyPoint"><option value="after">批次之后</option><option value="before">批次之前</option></select></label>
-    <label>对比来源<select id="compareHistory"><option value="">网站当前状态</option></select></label>
-    <div class="button-row"><button id="comparePoint">查看差异</button><button id="restorePoint" disabled>恢复选中状态</button></div>
-    <div id="historyDiff"></div>
-    <button id="inspectPending" hidden>查看待核对批次</button><button id="resolveHistory" hidden>已核对，保留网站现状</button>
-  </section>
   <section id="pageToolsPanel" class="card" aria-label="页面复制" hidden>
-    <div class="button-row"><button id="copyPage">复制摘要</button><button id="copyDom">复制 DOM</button><button id="saveOffline">保存 HTML</button><button id="downloadDom" hidden>下载原文</button></div>
+    <div class="button-row"><button id="copyDom">复制 DOM</button><button id="saveOffline">下载 HTML</button></div>
     <p class="hint">导出内容可能含私密信息。</p>
-    <p id="pageScope" class="hint"></p><p id="exportStatus" class="hint" role="status"></p><pre id="exportDetails" hidden></pre>
+    <p id="exportStatus" class="hint" role="status"></p><pre id="exportDetails" hidden></pre>
   </section>
   <section id="moreDetails" class="card settings" aria-label="设置" hidden>
     <div class="setting-row">
@@ -83,7 +70,6 @@
     <div class="setting-row"><span id="mcpState" role="status">MCP 未连接</span><button id="disconnectMcp">断开</button></div>
     <div class="setting-row software-update">
       <span id="updateStatus" role="status">检查更新中</span>
-      <a id="installUpdate" target="_blank" rel="noopener noreferrer" hidden>下载新版 ↗</a>
       <button id="copyUpdate">复制更新指令</button>
     </div>
     <details id="compatibilityDetails" hidden>

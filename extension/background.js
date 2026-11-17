@@ -1,6 +1,6 @@
 import {choosePlanTab} from './active-plan-tab.js';
 import {startMcpBridge} from './mcp-bridge.js';
-import {captureSummary,redact} from './assistance.js';
+import {redact} from './assistance.js';
 import {Executor,validate,fail,VERSION,clean} from './core.js';
 import {ApiAdapter,reads,writes} from './api.js';
 import {legacyToNative,nativeToLegacy} from './converter.js';
@@ -124,7 +124,13 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   if(message.kind==='loginStatus')return autoLogin.status();
   if(message.kind==='loginSave'){const saved=await autoLogin.save(message.account,message.password);if(message.tabId)await autoLogin.onPage(await tabFor(message)).catch(()=>{});return saved;}
   if(message.kind==='loginClear')return autoLogin.clear();
-  if(message.kind==='pageSummary'){const tab=await tabFor(message);await sessionFor(tab);return redact((await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func:captureSummary}))[0]?.result);}
+  if(message.kind==='exportHistory'){
+   const tab=await tabFor(message), session=await sessionFor(tab);
+   const history=new HistoryManager(privateStore,(...args)=>request(tab,...args));
+   const state=await history.state(session.actor);
+   if((await sessionFor(tab)).actor!==session.actor)fail('HISTORY_CONTEXT_MISMATCH');
+   return redact({scope:'本浏览器当前账号最近十批',cursor:state.cursor,entries:state.entries,pending:state.pending,partial:state.partial});
+  }
   if(message.kind==='export'){const op='site.html.'+message.action;validateStep({id:'export',op,params:message.params});if(!['site.html.begin','site.html.chunk','site.html.release'].includes(op))fail('INVALID_SCHEMA');return exportCommand(await tabFor(message),op,message.params);}
   if(message.kind==='run'){const e=message.command;if(e?.steps?.some(s=>s.op?.startsWith('site.html.'))){validate(e);if(e.steps.length!==1)fail('INVALID_SCHEMA','网页导出请使用独立指令，不与业务操作混合');const s=e.steps[0];validateStep(s);if(!['site.html.begin','site.html.chunk','site.html.release'].includes(s.op))fail('INVALID_SCHEMA');const value=['preview','validate'].includes(e.mode)?{valid:true}:await exportCommand(await tabFor(e),s.op,s.params);return {protocol:'xutu.result/v1',requestId:e.requestId,status:'success',steps:[{id:s.id,status:'success',serverVerified:false,data:value}],notice:'此导出不写入日志或批次历史'};}return executor.run(e);}
   fail('INVALID_SCHEMA');

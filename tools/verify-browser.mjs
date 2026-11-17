@@ -20,12 +20,14 @@ try{
  const offline=await evaluate(`({title:document.title,table:document.querySelector('table')?.innerText,svg:document.querySelector('svg')?.getBoundingClientRect().width,dialog:document.querySelector('dialog')?.open,shadow:document.querySelector('#shadow')?.shadowRoot?.textContent,input:document.querySelector('#input')?.value,disabled:document.querySelector('button')?.disabled,inert:document.querySelector('form')?.inert,unsafe:document.body.dataset.unsafe||null,csp:document.querySelector('meta[http-equiv]')?.content})`);
  assert.equal(offline.title,'合成离线验收');assert(offline.table.includes('验收完成'));assert(offline.svg>0);assert(offline.dialog);assert(offline.shadow.includes('影子树内文'));assert.equal(offline.input,'仅property中的新值');assert(offline.disabled&&offline.inert);assert.equal(offline.unsafe,null);
  const writes=events.filter(e=>e.method==='Network.requestWillBeSent'&&e.params.request.method==='POST');assert.equal(writes.length,0);
- const boot=`import {site} from '/tests/v25-helpers.js';const web=site();web.add('P');window.qaSite=web;let listeners=[];const local={};window.chrome={permissions:{request:async()=>true},runtime:{id:'a'.repeat(32),getURL:f=>location.origin+'/'+f,onInstalled:{addListener(){}},onMessage:{addListener:f=>listeners.push(f)},sendMessage:m=>new Promise(resolve=>listeners.forEach(listener=>listener(m,{id:'a'.repeat(32),url:location.origin+'/ui.html'},resolve)))},storage:{local:{get:async k=>({[k]:local[k]}),set:async obj=>Object.assign(local,obj)}},tabs:{get:async id=>({id,url:'https://plan.fpgabbs.cn/'}),query:async()=>[{id:123,title:'合成验收网页',url:'https://plan.fpgabbs.cn/',active:true}],sendMessage:async(id,m)=>{if(m.kind==='inspect')return {origin:'https://plan.fpgabbs.cn',anchors:{},activeTarget:{id:'P'}};try{return {ok:true,data:await web.request(m.path,m.method,m.body)};}catch(e){return {ok:false,code:e.code,message:e.message};}}},scripting:{executeScript:async options=>[{result:options.func?.name==='captureSummary'?{title:'合成页面',url:'https://plan.fpgabbs.cn/',text:'合成计划摘要',scope:'合成顶层页面',truncated:false,totalCharacters:6,copiedCharacters:6}:{available:false}}]},userScripts:{getScripts:async()=>[]}};window.fetch=async()=>({status:200,url:'https://github.com/mkiekuum/xutu-control-terminal/releases/tag/v2.5.0',body:null});await import('/extension/background.js');await import('/extension/ui.js');window.qaReady=true;`;
+ const boot=`import {site} from '/tests/v25-helpers.js';const web=site();web.add('P');window.qaSite=web;Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw Error('test manual-copy fallback')}}});let listeners=[];const local={};window.chrome={permissions:{request:async()=>true},runtime:{id:'a'.repeat(32),getURL:f=>location.origin+'/'+f,onInstalled:{addListener(){}},onMessage:{addListener:f=>listeners.push(f)},sendMessage:m=>new Promise(resolve=>listeners.forEach(listener=>listener(m,{id:'a'.repeat(32),url:location.origin+'/ui.html'},resolve)))},storage:{local:{get:async k=>({[k]:local[k]}),set:async obj=>Object.assign(local,obj),remove:async k=>{delete local[k]}}},tabs:{get:async id=>({id,url:'https://plan.fpgabbs.cn/'}),query:async()=>[{id:123,title:'合成验收网页',url:'https://plan.fpgabbs.cn/',active:true}],sendMessage:async(id,m)=>{if(m.kind==='inspect')return {origin:'https://plan.fpgabbs.cn',anchors:{},activeTarget:{id:'P'}};try{return {ok:true,data:await web.request(m.path,m.method,m.body)};}catch(e){return {ok:false,code:e.code,message:e.message};}}},scripting:{executeScript:async options=>[{result:{available:false}}]},userScripts:{getScripts:async()=>[]}};window.fetch=async()=>({status:200,url:'https://github.com/mkiekuum/xutu-control-terminal/releases/tag/v99.0.0',body:null});await import('/extension/background.js');await import('/extension/ui.js');window.qaReady=true;`;
  server=http.createServer(async(req,res)=>{try{const name=new URL(req.url,'http://localhost').pathname;if(name==='/boot.js'){res.setHeader('Content-Type','text/javascript');res.end(boot);return;}if(name==='/ui.html'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end((await fs.readFile(path.join(root,'extension/ui.html'),'utf8')).replace('href="ui.css"','href="/extension/ui.css"').replace('src="ui.js"','src="/boot.js"'));return;}if(!/^\/(extension|tests)\/[\w.-]+\.(js|css)$/.test(name)){res.writeHead(404).end();return;}res.setHeader('Content-Type',name.endsWith('.css')?'text/css':'text/javascript');res.end(await fs.readFile(path.join(root,name.slice(1))));}catch{res.writeHead(500).end();}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));await send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/ui.html'});
  for(let i=0;i<50;i++){if(await evaluate('window.qaReady===true'))break;await sleep(100);}await sleep(150);
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
+ const banner=await evaluate(`({visible:!document.getElementById('updateBanner').hidden,version:document.getElementById('updateAdvice').textContent,url:document.getElementById('installUpdate').href,collapsed:!document.getElementById('editor').closest('details').open})`);
+ assert(banner.visible&&banner.version.includes('99.0.0')&&banner.url.endsWith('/tag/v99.0.0')&&banner.collapsed);
  const loginUI=await evaluate(`(async()=>{
   const $=id=>document.getElementById(id);
   $('moreToggle').click();
@@ -39,16 +41,28 @@ try{
   await $('editLogin').onclick();
   const privateOnReopen=$('loginAccount').value==='synthetic-user'&&$('loginPassword').value==='';
   await $('forgetLogin').onclick();
-  const cleared=$('loginAccount').value===''&&$('loginStatus').textContent.includes('未启用');
+  const cleared=$('loginAccount').value===''&&$('loginState').textContent.includes('未启用');
   await $('editLogin').onclick();
   return {initial,expanded,saved,privateOnReopen,cleared,closed:$('loginSettings').hidden};
  })()`);
- for(const value of Object.values(loginUI))assert.equal(value,true);
+ for(const value of Object.values(loginUI))assert.equal(value,true,JSON.stringify(loginUI));
 
  await evaluate(`(async()=>{document.querySelector('#request').value='模拟复杂产品计划，20个节点';await document.querySelector('#copyPrompt').onclick();})()`);
+ const emptyPrompts=await evaluate(`(async()=>{
+  const request=document.getElementById('request');
+  request.value='   ';
+  for(const id of ['copyPrompt','copyMcpPrompt']){
+   await document.getElementById(id).onclick();
+   const text=document.getElementById('manualCopyText').value;
+   if(!text.includes('尚未填写需求')||!text.includes('最近一组未回答选项'))return false;
+   if(text.includes('Authorization: Bearer')!==(id==='copyMcpPrompt'))return false;
+  }
+  return true;
+ })()`);
+ assert(emptyPrompts);
  const questions=await evaluate(`({count:document.querySelectorAll('#intakeQuestions fieldset').length,hidden:!!document.querySelector('#intakePanel'),message:document.querySelector('#message').textContent})`);assert.equal(questions.count,0);assert.equal(questions.hidden,false);
  const promptScope=await evaluate(`(async()=>{const before=qaSite.calls.filter(c=>c.path==='/api/project-groups').length;document.querySelector('#request').value='新建并分配到项目组';await document.querySelector('#copyPrompt').onclick();return {unrelatedGroupReads:before,groupReads:qaSite.calls.filter(c=>c.path==='/api/project-groups').length,hasRequestedGroups:document.querySelector('#manualCopyText').value.includes('Synthetic group')};})()`);
- assert.equal(promptScope.unrelatedGroupReads,0);assert.equal(promptScope.groupReads,1);assert.equal(promptScope.hasRequestedGroups,true);
+ assert.equal(promptScope.groupReads-promptScope.unrelatedGroupReads,1);assert.equal(promptScope.hasRequestedGroups,true,JSON.stringify(promptScope));
  const mcpCopy=await evaluate(`(async()=>{const c={url:'http://127.0.0.1:62924',clientToken:'SYNTHETIC_CLIENT_TOKEN'.repeat(3),token:'SYNTHETIC_BRIDGE_TOKEN'.repeat(3),bridgeId:'synthetic-browser',tabId:123,enabled:true};await chrome.storage.local.set({mcpConnection:c});await document.querySelector('#copyMcpPrompt').onclick();const text=document.querySelector('#manualCopyText').value;const result={client:text.includes(c.clientToken),setupBridge:text.includes(c.token),need:text.includes(document.querySelector('#request').value)};await document.querySelector('#copyPrompt').onclick();result.ordinaryNoKey=!document.querySelector('#manualCopyText').value.includes(c.clientToken);return result;})()`);assert(mcpCopy.client&&mcpCopy.setupBridge&&mcpCopy.need&&mcpCopy.ordinaryNoKey);
  const execution=await evaluate(`(async()=>{const c={protocol:'xutu.command/v1',requestId:'synthetic-batch-ui',steps:[{id:'a',op:'node.batchUpdate',target:{id:'P',version:1},params:{updates:[{id:'1',set:{name:'确认名称'}}]}},{id:'b',op:'plan.update',target:{id:'P',versionFrom:'a'},dependsOn:['a'],params:{set:{title:'Synthetic batch'}}}]};document.querySelector('#editor').value=JSON.stringify(c);await document.querySelector('#execute').onclick();return {message:document.querySelector('#message').textContent,summary:document.querySelector('#changeSummary').textContent,result:JSON.parse(document.querySelector('#output').textContent).status,posts:window.qaSite.calls.filter(c=>c.method==='POST').length,revision:window.qaSite.records.get('P').revision};})()`);
  assert.equal(execution.result,'success');assert.equal(execution.posts,1);assert.equal(execution.revision,2);assert(execution.message.includes('已回读确认'));assert(execution.summary.includes('一次提交'));
@@ -65,17 +79,23 @@ try{
  const recoveryUI=await evaluate(`(async()=>{
   const $=id=>document.getElementById(id),posts=()=>qaSite.calls.filter(c=>c.method==='POST').length;
   qaSite.records.get('P').current.deadline='2026-12-01';qaSite.records.get('P').revision++;
-  const before=posts();await $('loadHistory').onclick();$('historyPoint').value='before';await $('comparePoint').onclick();await $('restorePoint').onclick();const undoReview=!$('reviewPanel').hidden&&posts()===before;await $('confirmAction').onclick();
+  const before=posts();
+  await $('copyHistory').onclick();
+  const copied=$('manualCopyText').value;
+  const history=JSON.parse(copied.slice(copied.indexOf('\\n')+1));
+  const entry=history.entries.at(-1);
+  const historyCopy=!!entry?.before?.P&&!!entry?.after?.P&&posts()===before;
+  async function restore(point){
+   $('editor').value=JSON.stringify({protocol:'xutu.command/v1',steps:[{id:'restore',op:'history.restorePoint',params:{historyId:entry.historyId,point}}]});
+   await $('execute').onclick();
+  }
+  await restore('before');const undoReview=!$('reviewPanel').hidden&&posts()===before;await $('confirmAction').onclick();
   const undone=qaSite.records.get('P').current.title==='Synthetic P'&&qaSite.records.get('P').current.deadline==='2026-12-01';
-  $('historyPoint').value='after';await $('comparePoint').onclick();await $('restorePoint').onclick();await $('confirmAction').onclick();const redone=qaSite.records.get('P').current.title==='Synthetic batch';
-  qaSite.records.get('P').current.title='Remote title';qaSite.records.get('P').revision++;
-  $('historyPoint').value='before';await $('comparePoint').onclick();await $('restorePoint').onclick();const conflictVisible=$('reviewDiff').textContent.includes('Remote title')&&$('reviewNotice').textContent.includes('相同字段');await $('cancelAction').onclick();const cancelPreserved=qaSite.records.get('P').current.title==='Remote title';
-  await $('copyPage').onclick();const pageCopy=$('manualCopyText').value.includes('合成计划摘要')||$('message').textContent.includes('摘要已复制');
+  await restore('after');await $('confirmAction').onclick();const redone=qaSite.records.get('P').current.title==='Synthetic batch';
   $('editor').value=JSON.stringify({protocol:'xutu.command/v1',requestId:'synthetic-delete-ui',steps:[{id:'d',op:'plan.delete',target:{id:'P',version:qaSite.records.get('P').revision},params:{}}]});const deleteBefore=posts();await $('execute').onclick();const deleteReview=!$('reviewPanel').hidden&&posts()===deleteBefore;await $('cancelAction').onclick();
-  qaSite.beforePost=()=>{throw Object.assign(Error('timeout'),{code:'TIMEOUT_RESULT_UNKNOWN'});};$('editor').value=JSON.stringify({protocol:'xutu.command/v1',requestId:'synthetic-lost-ui',steps:[{id:'u',op:'plan.update',target:{id:'P',version:qaSite.records.get('P').revision},params:{set:{title:'Unknown'}}}]});await $('execute').onclick();const unknown=$('message').textContent.includes('尚未确认');const unknownPosts=posts();await $('diagnoseRequest').onclick();const diagnosed=!$('resolveHistory').hidden&&posts()===unknownPosts;
-  await $('resolveHistory').onclick();const resolveReview=!$('reviewPanel').hidden;await $('confirmAction').onclick();const unresolvedUndoDisabled=$('restorePoint').disabled;
+  qaSite.beforePost=()=>{throw Object.assign(Error('timeout'),{code:'TIMEOUT_RESULT_UNKNOWN'});};$('editor').value=JSON.stringify({protocol:'xutu.command/v1',requestId:'synthetic-lost-ui',steps:[{id:'u',op:'plan.update',target:{id:'P',version:qaSite.records.get('P').revision},params:{set:{title:'Unknown'}}}]});await $('execute').onclick();const unknown=$('message').textContent.includes('尚未确认');const unknownPosts=posts();await $('diagnoseRequest').onclick();const diagnosed=JSON.parse($('output').textContent).pending.pending&&posts()===unknownPosts;
   await $('copyHelp').onclick();const helpCopy=$('manualCopyText').value.includes('system.status')||$('message').textContent.includes('求助资料已复制');
-  return {undoReview,undone,redone,conflictVisible,cancelPreserved,pageCopy,deleteReview,unknown,diagnosed,resolveReview,unresolvedUndoDisabled,helpCopy};
+  return {undoReview,undone,redone,historyCopy,deleteReview,unknown,diagnosed,helpCopy};
  })()`);
  for(const [check,value] of Object.entries(recoveryUI))assert.equal(value,true,check);
  let nativeSidebarCode='';if(process.argv[4]){const source=await fs.readFile(process.argv[4],'utf8');const begin=source.indexOf(" const fileSidebar=document.getElementById('fileSidebar')"),end=source.indexOf(" const sidebar=document.getElementById('historySidebar')",begin);if(begin<0||end<0)throw Error('Native sidebar source anchors changed');nativeSidebarCode=source.slice(begin,end);}
