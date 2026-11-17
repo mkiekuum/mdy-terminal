@@ -64,9 +64,14 @@ $('copyPrompt').onclick=()=>busy('copyPrompt',async()=>{
  if(selected!==tabId()||requestText!==$('request').value)throw Error('操作选择或需求已变化，请重新复制以获取对应资料。');
  await clipboard(buildPrompt(requestText,context,selected));message('普通 AI 提示词已复制。');
 });
-function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';$('helpPrivacy').hidden=result.status==='success';message([summarize(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
+function mergeWarnings(result) {
+ return (result.steps || []).flatMap(step => (step.data?.changes?.redundantEdges || []).map(edge =>
+  '重复连线 ' + edge.from + ' → ' + edge.to + '，已有间接路径 ' + edge.alternatePath.join(' → ') + '。' + edge.message
+ )).join('\n');
+}
+function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';$('helpPrivacy').hidden=result.status==='success';message([summarize(result),mergeWarnings(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
 async function execute(command){let result;try{result=await send({kind:'run',command});}catch{result={requestId:command.requestId,status:'failed',code:'TIMEOUT_RESULT_UNKNOWN',message:'连接中断，执行结果尚未确认。请只读核对，不要重新提交。'};}showResult(result,command);if(result.code==='HISTORY_SNAPSHOT_INCOMPLETE'||result.steps?.some(x=>x.code==='HISTORY_SNAPSHOT_INCOMPLETE'))await historyUI.inspectPending();}
-function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['node.remove','edge.remove'].includes(c.op)));}
+function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='task.merge'||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['task.merge','node.remove','edge.remove'].includes(c.op)));}
 $('execute').onclick=()=>busy('execute',async()=>{
  lastRequestId=await stableRequestId($('editor').value);
  const command=compactPlanEdits(prepareCommand($('editor').value,tabId(),lastRequestId));
@@ -78,7 +83,7 @@ $('execute').onclick=()=>busy('execute',async()=>{
   const preview=await send({kind:'run',command:{...command,mode:'preview'}});if(preview.status!=='success'||preview.steps.some(s=>s.data?.flowCheck?.canSubmit===false)){showResult(preview,command);return;}
   // Pin every previewed target to its read version. A concurrent edit must stop execution.
   for(const step of command.steps){const info=preview.steps.find(x=>x.id===step.id)?.data;if(step.target&&!step.target.versionFrom&&Number.isInteger(info?.revision))step.target.version=info.revision;}
-  review('这些操作会删除或恢复内容。请核对实际差异；确认后执行，网站再次变化时会停止。',readableDiff(preview.steps.map(s=>({targetId:command.steps.find(c=>c.id===s.id)?.target?.id,lifecycle:!s.data?.after,diff:businessDiff(s.data?.before,s.data?.after)}))),()=>execute(command));return;
+  review([mergeWarnings(preview),'请核对实际差异，确认后执行。'].filter(Boolean).join('\n'),readableDiff(preview.steps.map(s=>({targetId:command.steps.find(c=>c.id===s.id)?.target?.id,lifecycle:!s.data?.after,diff:businessDiff(s.data?.before,s.data?.after)}))),()=>execute(command));return;
  }
  message('格式校验通过，正在核对网站最新内容并执行…');await execute(command);
 });

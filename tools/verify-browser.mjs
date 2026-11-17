@@ -106,6 +106,24 @@ try{
  const mcpCopy=await evaluate(`(async()=>{const c={url:'http://127.0.0.1:62924',clientToken:'SYNTHETIC_CLIENT_TOKEN'.repeat(3),token:'SYNTHETIC_BRIDGE_TOKEN'.repeat(3),bridgeId:'synthetic-browser',tabId:123,enabled:true};await chrome.storage.local.set({mcpConnection:c});await document.querySelector('#copyMcpPrompt').onclick();const text=document.querySelector('#manualCopyText').value;const result={client:text.includes(c.clientToken),setupBridge:text.includes(c.token),need:text.includes(document.querySelector('#request').value)};await document.querySelector('#copyPrompt').onclick();result.ordinaryNoKey=!document.querySelector('#manualCopyText').value.includes(c.clientToken);return result;})()`);assert(mcpCopy.client&&mcpCopy.setupBridge&&mcpCopy.need&&mcpCopy.ordinaryNoKey);
  const execution=await evaluate(`(async()=>{const c={protocol:'xutu.command/v1',requestId:'synthetic-batch-ui',steps:[{id:'a',op:'node.batchUpdate',target:{id:'P',version:1},params:{updates:[{id:'1',set:{name:'确认名称'}}]}},{id:'b',op:'plan.update',target:{id:'P',versionFrom:'a'},dependsOn:['a'],params:{set:{title:'Synthetic batch'}}}]};document.querySelector('#editor').value=JSON.stringify(c);await document.querySelector('#execute').onclick();return {message:document.querySelector('#message').textContent,summary:document.querySelector('#changeSummary').textContent,result:JSON.parse(document.querySelector('#output').textContent).status,posts:window.qaSite.calls.filter(c=>c.method==='POST').length,revision:window.qaSite.records.get('P').revision};})()`);
  assert.equal(execution.result,'success');assert.equal(execution.posts,1);assert.equal(execution.revision,2);assert(execution.message.includes('已回读确认'));assert(execution.summary.includes('一次提交'));
+ const mergeUI=await evaluate(`(async()=>{
+  qaSite.add('MERGE');
+  const current=qaSite.records.get('MERGE').current;
+  current.nodes=['1','2','3','4'].map(id=>({id,name:'阶段'+id,owner:'USER_A',content:''}));
+  current.edges=[['1','2'],['2','3'],['1','4'],['4','3']].map(([from,to])=>({...current.edges[0],from,to}));
+  const step={id:'m',op:'task.merge',target:{id:'MERGE',version:1},params:{nodeIds:['1','2','3'],name:'综合设计'}};
+  const check=async(mode,output)=>{
+   document.getElementById('editor').value=JSON.stringify({protocol:'xutu.command/v1',mode,steps:[step]});
+   await document.getElementById('execute').onclick();
+   return document.getElementById(output).textContent.includes('重复连线 1 → 3，已有间接路径 1 → 4 → 3');
+  };
+  const before=qaSite.calls.filter(c=>c.method==='POST').length;
+  const preview=await check('preview','message'),review=await check('execute','reviewNotice');
+  const pending=!document.getElementById('reviewPanel').hidden;
+  await document.getElementById('cancelAction').onclick();
+  return preview&&review&&pending&&qaSite.calls.filter(c=>c.method==='POST').length===before;
+ })()`);
+ assert.equal(mergeUI,true,'merge preview displays direct and indirect paths before saving');
  const flowUI=await evaluate(`(async()=>{
   const $=id=>document.getElementById(id),posts=()=>qaSite.calls.filter(c=>c.method==='POST').length,revision=qaSite.records.get('P').revision,original=qaSite.records.get('P').current.title;
   const preview={protocol:'xutu.command/v1',requestId:'synthetic-explicit-preview',mode:'preview',steps:[{id:'u',op:'plan.update',target:{id:'P',version:revision},params:{set:{title:'Must not save'}}}]};

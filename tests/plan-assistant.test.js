@@ -26,9 +26,11 @@ for (const access of ['assistant','collaborator','viewer']) {
   };
   await assert.rejects(run('plan.delete'),{code:'PERMISSION_DENIED'});
   await assert.rejects(run('plan.create',{title:'Demo',number:'NEW',owner:'USER_A'}),{code:'PERMISSION_DENIED'});
-  const batch={changes:[{op:'plan.update',params:{set:{title:'Updated'}}}]};
+  const batch={changes:[{op:'node.update',params:{id:'1',set:{name:'Edited'}}},{op:'plan.update',params:{set:{title:'Updated'}}}]};
   if(access==='viewer') await assert.rejects(run('plan.batch',batch),{code:'PERMISSION_DENIED'});
   else assert.equal((await run('plan.batch',batch)).data.current.title,'Updated');
-  assert.equal(web.calls.filter(c=>c.method==='POST').length,access==='viewer'?0:1);
+  const writes=web.calls.filter(c=>c.method==='POST');
+  assert.deepEqual(writes.map(c=>[c.path,c.body.baseRevision]),access==='viewer'?[]:[['/api/plans/P/change',1]]);
+  if(access!=='viewer') assert.equal(web.records.get('P').current.nodes[0].name,'Edited');
  });
 }

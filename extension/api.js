@@ -2,7 +2,7 @@ import {inspectFlow,enforceFlow} from './flow-check.js';
 import {verifySaved} from './recovery.js';
 import {fail,assert,clone,edge,nativePlan,validatePlan,validDate,equivalent,operationId} from './core.js';
 import {validateStep,batchOperations} from './validation.js';
-import {auditGraph,simplifyDummies,expectedDuration} from './graph.js';
+import {auditGraph,simplifyDummies,expectedDuration,transitiveEdges} from './graph.js';
 import {mergeTasks,splitTask} from './task-transform.js';
 import {editNodes,planDiff,requestedChanges} from './local-edits.js';
 export const reads={'plan.list':'/api/plans','project.list':'/api/project-groups','group.list':'/api/visibility-groups','task.list':'/api/work-tasks','site.session':'/api/session','user.list':'/api/assignees'};
@@ -63,7 +63,7 @@ export class ApiAdapter{
  if(!after||after[field]!==value)fail('SERVER_NOT_CONFIRMED');
  return {targetId:planId,beforeVersion:item.revision,afterVersion:after.revision,data:after,serverVerified:true};
  }
- let path,id,before,current,backupId,changes,flowCheck;
+ let path,id,before,current,backupId,changes,flowCheck,canManage;
  if(op==='plan.create'){id=crypto.randomUUID();current=nativePlan(p,session.actor);path='/api/plans';}
  else if(op.startsWith('project.')||op.startsWith('group.')){
  if(e.execution?.backup)fail('UNSUPPORTED_BY_SITE','项目/权限配置快照恢复未核实，未执行写入');
@@ -89,7 +89,8 @@ export class ApiAdapter{
  if(op==='node.list'||op==='edge.list')return {data:current[op==='node.list'?'nodes':'edges'],serverVerified:true};
  if(op==='progress.read'||op==='review.status')return {data:op==='review.status'?before.review:current.edges.map(x=>({from:x.from,to:x.to,completedAt:x.completedAt})),serverVerified:true};
  if(op==='history.list')fail('UNSUPPORTED_BY_SITE','当前前端已禁用逐次编辑历史读取；不能伪造历史');
- if (session.role !== 'admin' && current.planOwner !== session.actor) {
+ canManage = session.role === 'admin' || current.planOwner === session.actor;
+ if (!canManage) {
   const contentEdit = batchOperations.includes(op) || op === 'plan.batch';
   if (!contentEdit || !await canEditPlan(this.request, before, session)) fail('PERMISSION_DENIED');
  }
@@ -128,13 +129,16 @@ export class ApiAdapter{
  if(op.startsWith('edge.')||op.startsWith('progress.')){let i=current.edges.findIndex(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);if(op==='edge.create')current.edges.push(edge(p));else{assert(i>=0,'连线不存在');if(op==='edge.remove')current.edges.splice(i,1);else if(op.startsWith('progress.')){assert(typeof p.actualCompleteDate==='string','需要 actualCompleteDate');current.edges[i].completedAt=p.actualCompleteDate;}else{const x=current.edges[i];if(p.estimateDays)x.upper=edge({...p}).upper;if(p.dashed!==undefined){assert(typeof p.dashed==='boolean','dashed 必须 boolean');x.dashed=p.dashed;}if(p.executor!==undefined)x.executor=p.executor;}}}
  }
  if(op==='edge.update'){const changed=current.edges.find(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);assert(!changed.dashed||changed.upper.split('-').every(x=>Number(x)===0),'虚任务必须是零耗时，请明确设置estimateDays三个0');}
+ const mergePreview = e.mode === 'preview' && (op === 'task.merge' ||
+  op === 'plan.batch' && p.changes.some(change => ['task.merge','node.remove'].includes(change.op)));
+ if (mergePreview) changes.redundantEdges = transitiveEdges(current.edges);
  validatePlan(current);if(!p.flowCheck&&['plan.create','plan.batch'].includes(op))flowCheck={format:'pass',drawing:'unverified',dependencies:'unverified',duration:'unverified',business:'not_independently_verified',canSubmit:true,notice:'未附确认图纸清单：原图一致性、工作开始约束与工期映射未核实；网站保存状态单独报告。'};if(p.flowCheck)flowCheck=e.mode==='preview'?inspectFlow(p.flowCheck,current):enforceFlow(p.flowCheck,current);assert(validDate(current.start)&&validDate(current.deadline)&&current.edges.every(x=>validDate(x.completedAt||'')),'日期无效');if(e.mode==='preview')return {data:{before:before?.current||null,after:['plan.delete','plan.archive'].includes(op)?null:current,revision:before?.revision,operation:op,rollback:'not_guaranteed',...(flowCheck?{flowCheck}:{}),changes:changes||planDiff(before?.current,current)},serverVerified:false};
  if(before&&(['plan.batch',...batchOperations].includes(op))&&equivalent(before.current,current))return {targetId:id,beforeVersion:before.revision,afterVersion:before.revision,data:before,serverVerified:true,noChange:true,...(flowCheck?{flowCheck}:{})};
  if(e.execution?.backup&&before){if(!this.options.saveSnapshot)fail('UNSUPPORTED_BY_SITE','快照存储不可用，未写入');backupId=e.requestId+':'+s.id;await this.options.saveSnapshot(backupId,{actor:session.actor,targetId:before.id||id,record:before,createdAt:new Date().toISOString()});}
  const operation=await operationId(e.requestId,s.id);let body={baseRevision:before?.revision,current,operation};
  if(path==='/api/plans')body={id,current,...(op==='plan.copy'?{copySourceId:before.id}:{})};
  else if(['plan.archive','plan.delete','plan.restore','review.submit','review.approve','review.reject','history.restore'].includes(op)){path+={'plan.archive':'/trash','plan.delete':'/trash','plan.restore':'/undelete','review.submit':'/submit','review.approve':'/review','review.reject':'/review','history.restore':'/restore'}[op];body={baseRevision:before.revision,operation};if(op.startsWith('review.')&&op!=='review.submit'){body.decision=op.split('.')[1];body.note=p.note||'';if(body.decision==='reject')assert(body.note.trim(),'退回需要 note');}if(op==='history.restore'){assert(Number.isInteger(p.targetRevision),'targetRevision 必须整数');body.targetRevision=p.targetRevision;}}
- else path+=['plan.batch','plan.replace','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
+ else path+=canManage&&['plan.batch','plan.replace','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
  await this.options.onPhase?.('submitting');trace.id=id;trace.submitted=true;const written=await this.request(path,'POST',body);
  if(op==='plan.archive'||op==='plan.delete'){const trash=await this.request('/api/trash');if(!trash.some(x=>x.id===id))fail('SERVER_NOT_CONFIRMED','垃圾桶回读未找到目标');return {targetId:id,serverVerified:true,...(backupId?{backupId}:{}),data:{recoverable:true}};}
  await this.options.onPhase?.('verifying');const after=await this.request('/api/plans/'+encodeURIComponent(id));if(after.revision!==written.revision)fail('SERVER_NOT_CONFIRMED','回读版本不一致');
