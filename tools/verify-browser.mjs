@@ -24,6 +24,26 @@ try{
  server=http.createServer(async(req,res)=>{try{const name=new URL(req.url,'http://localhost').pathname;if(name==='/boot.js'){res.setHeader('Content-Type','text/javascript');res.end(boot);return;}if(name==='/ui.html'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end((await fs.readFile(path.join(root,'extension/ui.html'),'utf8')).replace('href="ui.css"','href="/extension/ui.css"').replace('src="ui.js"','src="/boot.js"'));return;}if(!/^\/(extension|tests)\/[\w.-]+\.(js|css)$/.test(name)){res.writeHead(404).end();return;}res.setHeader('Content-Type',name.endsWith('.css')?'text/css':'text/javascript');res.end(await fs.readFile(path.join(root,name.slice(1))));}catch{res.writeHead(500).end();}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));await send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/ui.html'});
  for(let i=0;i<50;i++){if(await evaluate('window.qaReady===true'))break;await sleep(100);}await sleep(150);
+ for (const width of [280,400,880]) {
+  await send('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:false});
+  for (const theme of ['light','dark']) {
+   await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
+   const layout=await evaluate(`(()=>{
+    const by=id=>document.getElementById(id);
+    const rect=id=>by(id).getBoundingClientRect();
+    const mcp=rect('copyMcpPrompt'),ordinary=rect('copyPrompt'),request=rect('request');
+    const details=by('editor').closest('details');
+    const closed=!details.open && !by('editor').checkVisibility();
+    details.open=true;
+    const editor=rect('editor'),execute=rect('execute');
+    details.open=false;
+    return {closed,aligned:mcp.left===request.left&&mcp.top===ordinary.top&&mcp.right<ordinary.left&&Math.abs(mcp.width-ordinary.width)<=1&&mcp.height===ordinary.height,editorAligned:editor.left===request.left&&editor.width===request.width&&execute.left===mcp.left&&execute.height===mcp.height,overflow:document.documentElement.scrollWidth>innerWidth};
+   })()`);
+   assert.deepEqual(layout,{closed:true,aligned:true,editorAligned:true,overflow:false},width+'px '+theme);
+  }
+ }
+ await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});
+ await send('Emulation.setEmulatedMedia',{features:[]});
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
  const banner=await evaluate(`({visible:!document.getElementById('updateBanner').hidden,version:document.getElementById('updateAdvice').textContent,url:document.getElementById('installUpdate').href,collapsed:!document.getElementById('editor').closest('details').open})`);

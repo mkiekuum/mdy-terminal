@@ -19,19 +19,19 @@
   <button id="openSite" class="text-button">打开序图 ↗</button>
 </header>
 <main>
-  <div class="workspace">
-    <section class="card compose-card">
+  <div class="workspace card">
+    <section class="compose-card">
       <div class="field-heading">
         <label id="requestLabel" for="request">计划需求</label>
       </div>
       <textarea id="request" rows="3" placeholder="可跨计划、跨任务新建或调整。写下目标和范围，也可留空。"></textarea>
       <div class="actions prompt-actions">
         <button id="copyMcpPrompt" class="primary">复制给 MCP AI</button>
+        <button id="copyPrompt">复制给普通 AI</button>
       </div>
     </section>
-    <details class="card execute-card">
+    <details class="execute-card">
       <summary>JSON 指令</summary>
-      <button id="copyPrompt" class="text-button">复制普通 AI 提示词</button>
       <textarea id="editor" aria-label="JSON 指令" rows="3" spellcheck="false" placeholder="粘贴 JSON 指令"></textarea>
       <p id="changeSummary" class="hint" role="status"></p>
       <div class="actions"><button id="execute" class="primary">执行指令</button></div>

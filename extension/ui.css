@@ -42,10 +42,12 @@ h2, label { font-size: 13px; font-weight: 600; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 [data-state="connected"] .status-dot { color: var(--accent); }
 [data-state="error"] .status-dot { color: var(--warning); }
-main, .workspace { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+main { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .card { min-width: 0; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-.workspace .card { display: flex; flex-direction: column; }
-.field-heading { min-height: 30px; margin-bottom: 7px; }
+.workspace.card { padding: 0; }
+.compose-card, .execute-card { padding-inline: clamp(12px, 2vw, 18px); }
+.compose-card { padding-block: 14px; }
+.field-heading { margin-bottom: 8px; }
 button, select, input, textarea { font: inherit; color: inherit; }
 button, select, input:not([type="checkbox"]), textarea {
   border: 1px solid var(--line);
@@ -65,8 +67,10 @@ textarea::placeholder { color: var(--muted); }
 #editor { font: 13px/1.6 Consolas, "Microsoft YaHei UI", monospace; }
 .actions { margin-top: 8px; }
 .actions > button { flex: 1 1 auto; }
-.prompt-actions { justify-content: flex-start; }
-.prompt-actions > button { flex: 0 1 auto; }
+.workspace .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.workspace .actions button { min-height: 36px; padding: 6px; font-weight: 600; }
+#copyPrompt { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); }
+.workspace textarea { padding: 9px 10px; }
 .hint, small { color: var(--muted); font-size: 12px; font-weight: normal; }
 .hint:not(:empty) { margin-top: 5px; }
 .tool-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--line); padding-block: 3px; gap: 3px; }
@@ -89,9 +93,6 @@ main { overflow-wrap: anywhere; }
 summary, a { color: var(--accent); cursor: pointer; }
 summary { padding: 7px 0; font-weight: 600; }
 pre { margin: 6px 0; max-height: 32vh; overflow: auto; white-space: pre-wrap; padding: 8px; background: var(--field); font: 12px/1.55 Consolas, monospace; }
-@media (min-width: 640px) {
-  .workspace textarea { flex-grow: 1; }
-}
 @media (max-width: 340px) {
   .card { padding: 9px; }
   .identity { gap: 4px 7px; }
@@ -100,7 +101,15 @@ pre { margin: 6px 0; max-height: 32vh; overflow: auto; white-space: pre-wrap; pa
   .login-fields .actions, .login-fields .hint { grid-column: 1; }
 }
 
-.workspace details.card { display: block; }
-.execute-card summary { cursor: pointer; font-weight: 600; }
-.execute-card[open] summary { margin-bottom: 8px; }
+.execute-card > summary {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-block: 12px; list-style: none; color: var(--ink); font-size: 13px;
+}
+.execute-card > summary::-webkit-details-marker { display: none; }
+.execute-card > summary::after {
+  content: ""; width: 7px; height: 7px; margin-inline-end: 3px;
+  border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
+}
+.execute-card[open] > summary::after { transform: rotate(225deg); }
+.execute-card[open] { padding-bottom: 14px; }
 #updateBanner { padding: 8px 12px; background: var(--tint); color: var(--accent); }
