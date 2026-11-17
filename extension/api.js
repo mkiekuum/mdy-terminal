@@ -11,6 +11,13 @@ writes.push('plan.restoreSnapshot','node.batchUpdate','node.renumber');
 writes.push('graph.simplify','plan.batch');
 writes.push('task.merge','task.split');
 writes.push('task.assign','task.updateStatus');
+export async function canEditPlan(request, record, session) {
+ if (session.role === 'admin' || record.current.planOwner === session.actor) return true;
+ if (Array.isArray(record.collaborators) && record.collaborators.includes(session.actor)) return true;
+ const plans = await request('/api/plans');
+ return plans.some(plan => plan.id === record.id && plan.assistantEditable === true);
+}
+
 export class ApiAdapter{
  constructor(request,options={}){this.request=request;this.options=options;}
  async resolve(t={}){if(t.id)return t.id;assert(typeof t.number==='string','target.id 或 number 必填');const items=(await this.request('/api/plans')).filter(p=>p.planNumber===t.number&&(!t.owner||p.planOwner===t.owner));if(items.length!==1)fail(items.length?'TARGET_AMBIGUOUS':'TARGET_NOT_FOUND');return items[0].id;}
@@ -37,6 +44,9 @@ export class ApiAdapter{
  if(this.options.expectedActor&&session.actor!==this.options.expectedActor)fail('HISTORY_CONTEXT_MISMATCH','账号发生变化，停止执行');
  if(!session.actor)fail('NOT_LOGGED_IN');if(session.mustChangePassword)fail('PERMISSION_DENIED','请先在网站完成密码设置');
  if((op.startsWith('group.')||['review.approve','review.reject'].includes(op))&&session.role!=='admin')fail('PERMISSION_DENIED');
+ if (['plan.create','plan.copy'].includes(op) && p.owner && p.owner !== session.actor && session.role !== 'admin') {
+  fail('PERMISSION_DENIED','当前账号只可为自己创建计划；指定其他负责人需管理员权限。');
+ }
  if(reads[op])return {data:await this.request(reads[op]),serverVerified:true};
  if(['task.assign','task.updateStatus'].includes(op)){
  const planId=await this.resolve(t),items=await this.request('/api/work-tasks');
@@ -79,7 +89,10 @@ export class ApiAdapter{
  if(op==='node.list'||op==='edge.list')return {data:current[op==='node.list'?'nodes':'edges'],serverVerified:true};
  if(op==='progress.read'||op==='review.status')return {data:op==='review.status'?before.review:current.edges.map(x=>({from:x.from,to:x.to,completedAt:x.completedAt})),serverVerified:true};
  if(op==='history.list')fail('UNSUPPORTED_BY_SITE','当前前端已禁用逐次编辑历史读取；不能伪造历史');
- if(session.role!=='admin'&&current.planOwner!==session.actor)fail('PERMISSION_DENIED');
+ if (session.role !== 'admin' && current.planOwner !== session.actor) {
+  const contentEdit = batchOperations.includes(op) || op === 'plan.batch';
+  if (!contentEdit || !await canEditPlan(this.request, before, session)) fail('PERMISSION_DENIED');
+ }
  trace.id=id;trace.before=clone(before);
  if(t.versionFrom!==undefined)fail('INVALID_SCHEMA','versionFrom 必须由执行器关联到已确认步骤');
  if(['node.batchUpdate','node.renumber'].includes(op))assert(Number.isInteger(t.version),'局部批量修改必须提供读取依据版本');
@@ -89,6 +102,7 @@ export class ApiAdapter{
  let virtual=clone(before);
  const local=new ApiAdapter(async(endpoint,method,body)=>{
   if(endpoint==='/api/session')return session;
+  if(endpoint==='/api/plans' && !method)return [{id,assistantEditable:true}]; // Outer batch already checked this plan.
   assert(endpoint===path||endpoint===path+'/import'||endpoint===path+'/change','批量操作不能访问其他目标或服务');
   if(method==='POST')virtual={...virtual,current:clone(body.current),revision:virtual.revision+1};
   return clone(virtual);

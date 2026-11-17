@@ -65,6 +65,8 @@ textarea::placeholder { color: var(--muted); }
 #editor { font: 13px/1.6 Consolas, "Microsoft YaHei UI", monospace; }
 .actions { margin-top: 8px; }
 .actions > button { flex: 1 1 auto; }
+.prompt-actions { justify-content: flex-start; }
+.prompt-actions > button { flex: 0 1 auto; }
 .hint, small { color: var(--muted); font-size: 12px; font-weight: normal; }
 .hint:not(:empty) { margin-top: 5px; }
 .tool-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--line); padding-block: 3px; gap: 3px; }

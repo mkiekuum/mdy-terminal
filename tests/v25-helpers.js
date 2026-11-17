@@ -17,7 +17,7 @@ export function site(){
   if(path==='/api/plans'&&method==='POST'){await beforePost?.(path,body);if([...records.values()].some(r=>r.current.planNumber===body.current.planNumber))fail('PLAN_NUMBER_CONFLICT');records.set(body.id,{id:body.id,revision:1,current:structuredClone(body.current),review:{status:'draft'},projectGroupId:''});return {revision:1};}
   const [,id,action]=path.match(/^\/api\/plans\/([^/]+)(?:\/(.*))?$/)||[];if(!id)fail('UNSUPPORTED_BY_SITE',path);
   if(method==='GET'){if(trash.has(id))fail('TARGET_TRASHED');if(!records.has(id))fail('TARGET_NOT_FOUND');return structuredClone(records.get(id));}
-  await beforePost?.(path,body);const r=records.get(id)||trash.get(id);if(!r)fail('TARGET_NOT_FOUND');if(r.current.planOwner!==actor)fail('PERMISSION_DENIED');if(body.baseRevision!==r.revision)fail('VERSION_CONFLICT');r.revision++;
+  await beforePost?.(path,body);const r=records.get(id)||trash.get(id);if(!r)fail('TARGET_NOT_FOUND');const sharedEdit=['change','import'].includes(action)&&(r.collaborators?.includes(actor)||r.assistants?.includes(actor));if(r.current.planOwner!==actor&&!sharedEdit)fail('PERMISSION_DENIED');if(body.baseRevision!==r.revision)fail('VERSION_CONFLICT');r.revision++;
   if(action==='trash'){records.delete(id);r.planOwner=r.current.planOwner;trash.set(id,r);}else if(action==='undelete'){trash.delete(id);records.set(id,r);}else if(['import','change'].includes(action))r.current=structuredClone(body.current);else if(action==='submit')r.review={status:'submitted'};else fail('UNSUPPORTED_BY_SITE');return {revision:r.revision};
  };
  return {records,trash,calls,groups,request,add,set actor(value){actor=value;},get actor(){return actor;},set denyGroup(value){denyGroup=value;},set beforePost(value){beforePost=value;}};

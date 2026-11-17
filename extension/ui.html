@@ -24,7 +24,7 @@
       <div class="field-heading">
         <label id="requestLabel" for="request">计划需求</label>
       </div>
-      <textarea id="request" rows="3" placeholder="目标与要求（可留空）"></textarea>
+      <textarea id="request" rows="3" placeholder="可跨计划、跨任务新建或调整。写下目标和范围，也可留空。"></textarea>
       <div class="actions prompt-actions">
         <button id="copyMcpPrompt" class="primary">复制给 MCP AI</button>
       </div>
@@ -52,7 +52,6 @@
   </nav>
   <section id="pageToolsPanel" class="card" aria-label="页面复制" hidden>
     <div class="button-row"><button id="copyDom">复制 DOM</button><button id="saveOffline">下载 HTML</button></div>
-    <p class="hint">导出内容可能含私密信息。</p>
     <p id="exportStatus" class="hint" role="status"></p><pre id="exportDetails" hidden></pre>
   </section>
   <section id="moreDetails" class="card settings" aria-label="设置" hidden>
