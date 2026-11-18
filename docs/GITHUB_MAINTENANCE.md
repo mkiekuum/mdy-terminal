@@ -49,7 +49,7 @@ gh repo view --json nameWithOwner,defaultBranchRef,url
 node tools/site-watch.mjs
 ```
 
-现有脚本比较六个公开JS资源的哈希：app、editor、cloud、progress、collaboration、assignees-ui。退出码2代表资源变化，查看compatibility-report.json；网络异常不代表网站不兼容，也不代表检查通过。网络失败时记录错误和已完成步骤，不能用空结果覆盖基线。
+现有脚本比较七个公开JS资源的哈希：app、editor、cloud、progress、collaboration、assignees-ui、records-ui。退出码2代表资源变化，查看compatibility-report.json；网络异常不代表网站不兼容，也不代表检查通过。网络失败时记录错误和已完成步骤，不能用空结果覆盖基线。
 
 维护AI还应根据当前HTML资源引用，检查相关HTML、CSS、score.js及新增本站脚本。只读下载到不公开的临时审查目录，与已审查版本比较。区分UI/选择器变化、API请求结构变化、权限/状态变化、评分或计算变化、新功能。不要将公司原始源码提交到公开仓库；公开报告只记录必要的哈希、变化摘要和测试结论。
 
@@ -141,3 +141,13 @@ gh release download vX.Y.Z --dir RELEASE_DIRECTORY
 
 
 v3.0.2：外部图纸用 plan.create / plan.batch 的可选 flowCheck 对照确认清单；只能核对所附资料，不能识别截图或证明 AI 抄录忠实。带检查的写入必须结构及完整工作映射通过；缺证据或模型不等价时集中说明，禁止自动新增节点、改依赖或分摊工期。mode=preview / validate 在界面也保持只读；省略 mode 才默认执行。详见 FLOW_COMPATIBILITY.md。
+
+## 2026-11-18 项目与任务入口检查
+
+线上 cloud.js 将项目组新建表单移到 records.html。新增的 records-ui.js 通过 /api/records/meta 读取审核权限，通过 /api/records/projects、/api/records/tasks、/api/records/requests 读取记录。新建和修改提交到 /api/records/requests，普通账号返回 pending；审核员可直接生效。项目字段包含类型、商机或计划编号、简称和负责人。旧项目组的 number/name/owner 参数不能直接映射整个新流程。
+
+已逐行比对 cloud.js 与此前已审查哈希对应的源码。变动仅涉及项目创建入口，计划分组读取与分配、计划 /change 保存和进度接口的前端调用没有变化。其余五个既有脚本哈希一致。将 records-ui.js 加入每日哈希检查，以覆盖后续申请与审核流程变动。
+
+本轮隔离浏览器服务不可用，浏览器列表为空。登录后的接口权限、旧 project.create 接口是否仍可写及新增申请流程尚未实测。终端的新项目申请适配继续待核实，当前 MCP project.create 仍表示旧项目组创建。不能将源码审查或基线通过解释为新增申请流程已兼容。后续获得有效会话后，先只读核对 records/meta 和列表结构，再用隔离数据检查申请状态及回读结果。
+
+本轮两个指定钉钉群的新增消息未检出网站变更说明。运行记录仅包含检查范围和结果。保留现有版本号，例行维护只更新维护分支。
