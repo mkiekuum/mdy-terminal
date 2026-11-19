@@ -5,14 +5,14 @@ import {McpGate} from '../extension/mcp-policy.js';
 import {integrated,site,envelope} from './v25-helpers.js';
 
 function fixture(){
- const web=site(), requests=[], projects=[{id:'P',kind:'internal',referenceNumber:'JH-QA',shortName:'QA',owner:'USER_A',planId:''}],meta={reviewer:false,types:['硬件'],statuses:['等待','已完成'],users:['USER_A']};
+ const web=site(), requests=[], tasks=[], projects=[{id:'P',kind:'internal',referenceNumber:'JH-QA',shortName:'QA',owner:'USER_A',planId:''}],meta={reviewer:false,types:['硬件'],statuses:['等待','已完成'],users:['USER_A']};
  const base=web.request,posts=[];
  let alter=false, reject=false;
  web.request=async(path,method='GET',body)=>{
   if(path==='/api/records/meta')return structuredClone(meta);
   if(path==='/api/records/projects')return structuredClone(projects);
   if(path==='/api/records/requests'&&method==='GET')return structuredClone(requests);
-  if(path==='/api/records/tasks')return [];
+  if(path==='/api/records/tasks')return structuredClone(tasks);
   if(path.startsWith('/api/records/')&&method==='POST'){
    posts.push(structuredClone(body));
    if(reject)throw Object.assign(Error('denied'),{code:'PERMISSION_DENIED'});
@@ -27,7 +27,7 @@ function fixture(){
  };
  const system=integrated(web),gate=new McpGate(c=>system.executor.run(c),async()=>web.actor);
  const command=(op,params)=>envelope([{id:'r',op,params}]);
- return {web,gate,system,meta,requests,projects,posts,command,api:new ApiAdapter(web.request),set alter(v){alter=v;},set reject(v){reject=v;}};
+ return {web,gate,system,meta,requests,tasks,projects,posts,command,api:new ApiAdapter(web.request),set alter(v){alter=v;},set reject(v){reject=v;}};
 }
 const payload={kind:'internal',referenceNumber:'JH-QA',shortName:'QA',owner:'USER_A'};
 test('MCP new project remains pending, reads back and request replay does not write twice',async()=>{
@@ -56,4 +56,21 @@ test('reviewers still submit new records for approval and can review and link',a
  assert.equal(r.data.status,'approved');assert(r.serverVerified);
  const link=await f.api.run({id:'link',op:'records.link',params:{kind:'project',targetId:'P',before:f.projects[0],planId:''}},{mode:'execute'});
  assert(link.serverVerified);
+});
+
+test('task boardName survives MCP submission, partial update and approval',async()=>{
+ const f=fixture(),payload={projectId:'P',type:'硬件',subject:'QA_BOARD',boardName:'CO0000 Synthetic Board',owner:'USER_A'};
+ const c=f.command('records.submit',{kind:'task',action:'create',payload});
+ const preview=await f.gate.handle({kind:'preview',id:'board',command:c});
+ assert.equal(preview.result.status,'success');assert.equal(f.posts.length,0);
+ const result=await f.gate.handle({kind:'execute',previewJobId:'board',approval:'提交隔离板卡任务'});
+ assert.equal(result.status,'success');assert.equal(result.steps[0].data.record.payload.boardName,payload.boardName);assert(result.steps[0].serverVerified);
+ f.tasks.push({id:'T',...payload,status:'等待'});
+ const update=f.command('records.submit',{kind:'task',action:'update',targetId:'T',before:structuredClone(f.tasks[0]),payload:{projectId:'P',type:'硬件',subject:'QA_UPDATED',owner:'USER_A'}});
+ const saved=await f.system.executor.run({...update,mode:'execute'});
+ assert.equal(saved.status,'success');assert.equal(f.posts.at(-1).payload.boardName,payload.boardName);
+ f.meta.reviewer=true;
+ const before=structuredClone(f.requests.at(-1));
+ const reviewed=await f.api.run({id:'review',op:'records.review',params:{requestId:before.id,before,decision:'approve',payload:{projectId:'P',type:'硬件',subject:'QA_UPDATED',owner:'USER_A'}}},{mode:'preview'});
+ assert.equal(reviewed.data.after.payload.boardName,payload.boardName);
 });

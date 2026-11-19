@@ -1477,6 +1477,9 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
               "type": "string",
               "minLength": 1
             },
+            "boardName": {
+              "type": "string"
+            },
             "owner": {
               "type": "string",
               "minLength": 1
@@ -1608,6 +1611,9 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
             "subject": {
               "type": "string",
               "minLength": 1
+            },
+            "boardName": {
+              "type": "string"
             },
             "owner": {
               "type": "string",

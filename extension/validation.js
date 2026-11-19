@@ -44,7 +44,7 @@ export const parameterSchemas={
 };
 const recordKind={enum:['project','task']}, basis={type:'object'};
 const projectPayload=object({kind:{enum:['customer','internal']},referenceNumber:nonempty,shortName:nonempty,owner:nonempty,category:string,status:{enum:['已启动','未启动','暂停','已完成']},startDate:string,targetDate:string,note:string},['kind','referenceNumber','shortName','owner']);
-const taskPayload=object({projectId:nonempty,type:nonempty,subject:nonempty,owner:nonempty,status:string,completedAt:string,targetDate:string,content:string,deliverable:string,note:string},['projectId','type','subject','owner']);
+const taskPayload=object({projectId:nonempty,type:nonempty,subject:nonempty,boardName:string,owner:nonempty,status:string,completedAt:string,targetDate:string,content:string,deliverable:string,note:string},['projectId','type','subject','owner']);
 const payload={oneOf:[projectPayload,taskPayload]};
 for(const op of ['records.meta','records.projects','records.tasks','records.requests'])parameterSchemas[op]=object({});
 parameterSchemas['records.submit']=object({kind:recordKind,action:{enum:['create','update']},targetId:nonempty,before:basis,payload,direct:boolean},['kind','action','payload']);

@@ -25,7 +25,7 @@ export async function runRecord(request, step, envelope) {
  if(!link){
   assert(kind==='project'||kind==='task','未知记录类型');
   assert(kind==='project'?p.payload.shortName:p.payload.subject,'记录类型与内容不匹配');
-  const fields=kind==='project'?['kind','referenceNumber','shortName','owner','category','status','startDate','targetDate','note']:['projectId','type','subject','owner','status','completedAt','targetDate','content','deliverable','note'];
+  const fields=kind==='project'?['kind','referenceNumber','shortName','owner','category','status','startDate','targetDate','note']:['projectId','type','subject','boardName','owner','status','completedAt','targetDate','content','deliverable','note'];
   const original=review?current.payload:current;
   payload={...Object.fromEntries(Object.entries(original||{}).filter(([key])=>fields.includes(key))),...p.payload};
   if(kind==='task'){
