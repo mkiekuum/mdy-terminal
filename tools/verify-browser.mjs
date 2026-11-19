@@ -55,7 +55,7 @@ try{
  await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});
  await send('Emulation.setEmulatedMedia',{features:[]});
  const upgrade=await evaluate(`(async()=>{
-  const keep={xutuThemes:{mode:'stored'},xutuThemeUndo:['previous'],optimizeSidebar:true,customPreference:'unchanged'};
+  const keep={xutuThemes:{mode:'stored'},xutuThemeUndo:['previous'],optimizeSidebar:true,hideSidebar:true,terminalAppearance:{theme:'dark',density:'compact'},customPreference:'unchanged'};
   await chrome.storage.local.set({...keep,releaseCheck:{stale:true}});
   await window.qaInstalled({reason:'update'});
   for(const [key,value] of Object.entries(keep)){
@@ -64,6 +64,28 @@ try{
   return !(await chrome.storage.local.get('releaseCheck')).releaseCheck;
  })()`);
  assert(upgrade,'updating must preserve user settings');
+ const appearanceUI=await evaluate(`(async()=>{
+  const {setupAppearance}=await import('/extension/appearance.js');
+  await setupAppearance(document,chrome.storage.local);
+  if(document.documentElement.dataset.theme!=='dark'||document.documentElement.dataset.density!=='compact')return false;
+  document.getElementById('themeChoice').value='light';await document.getElementById('themeChoice').onchange();
+  document.getElementById('densityChoice').value='comfortable';await document.getElementById('densityChoice').onchange();
+  const saved=(await chrome.storage.local.get('terminalAppearance')).terminalAppearance;
+  return saved.theme==='light'&&saved.density==='comfortable';
+ })()`);
+ assert(appearanceUI,'appearance settings persist after upgrade');
+ const hiddenSidebar=await evaluate(`(async()=>{
+  const {installSidebarUI}=await import('/extension/sidebar-ui.js');
+  const host=document.createElement('aside');host.id='fileSidebar';host.innerHTML='<button id="fileSidebarToggle">计划</button>';document.body.append(host);
+  const ui=installSidebarUI(document,{hidden:true});
+  const hidden=getComputedStyle(host).display==='none';
+  document.getElementById('xutu-sidebar-restore').click();
+  const shown=getComputedStyle(host).display!=='none';
+  document.getElementById('xutu-sidebar-hide').click();
+  const hiddenAgain=getComputedStyle(host).display==='none';
+  ui.destroy();host.remove();return hidden&&shown&&hiddenAgain;
+ })()`);
+ assert(hiddenSidebar,'sidebar can be completely hidden and restored');
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
  const banner=await evaluate(`({visible:!document.getElementById('updateBanner').hidden,version:document.getElementById('updateAdvice').textContent,url:document.getElementById('installUpdate').href,collapsed:!document.getElementById('editor').closest('details').open})`);

@@ -1,3 +1,4 @@
+import {setupAppearance} from './appearance.js';
 import {setupRecordsPanel} from './ui-records.js';
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
@@ -16,6 +17,7 @@ const $=id=>document.getElementById(id);let openingTabId,selectedPlanTab,lastReq
 if (chrome.extension?.getViews({type: 'popup'}).includes(window)) {
  document.documentElement.classList.add('popup');
 }
+setupAppearance(document,chrome.storage.local).catch(()=>message('外观设置读取失败',true));
 let loginGeneration = 0;
 setupToolPanels(document, panel => {
  closeLogin();
@@ -114,8 +116,9 @@ $('copyMcpPrompt').onclick = () => busy('copyMcpPrompt', async () => {
  message(selected ? '已复制 MCP 提示词。' : '已复制提示词。打开序图页后可配对 MCP。');
 });
 async function refreshMcpSettings() {
- const {mcpConnection, mcpBridgeStatus, optimizeSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'optimizeSidebar']);
+ const {mcpConnection, mcpBridgeStatus, optimizeSidebar, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'optimizeSidebar', 'hideSidebar']);
  $('optimizeSidebar').checked = !!optimizeSidebar;
+ $('hideSidebar').checked = !!hideSidebar;
  const state = mcpBridgeStatus?.state;
  let label = 'MCP 未连接';
  if (mcpConnection?.enabled) {
@@ -128,10 +131,11 @@ async function refreshMcpSettings() {
 }
 refreshMcpSettings();
 $('optimizeSidebar').onchange=async()=>{try{await chrome.storage.local.set({optimizeSidebar:$('optimizeSidebar').checked});for(const t of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:t.id},files:['sidebar-loader.js']});message('网页侧栏设置已保存；只影响界面，不修改计划。');}catch(e){message(e.message,true);}};
+$('hideSidebar').onchange=async()=>{try{await chrome.storage.local.set({hideSidebar:$('hideSidebar').checked});for(const t of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:t.id},files:['sidebar-loader.js']});message('侧栏设置已保存，网页左侧“计划”按钮可恢复。');}catch(e){message(e.message,true);}};
 $('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews']);$('mcpState').textContent='已断开，清除本机连接密钥。';});
 
 chrome.storage.onChanged?.addListener((changes, area) => {
- if (area === 'local' && (changes.mcpConnection || changes.mcpBridgeStatus || changes.optimizeSidebar)) refreshMcpSettings();
+ if (area === 'local' && (changes.mcpConnection || changes.mcpBridgeStatus || changes.optimizeSidebar || changes.hideSidebar)) refreshMcpSettings();
 });
 
 function displayLogin(info) {
