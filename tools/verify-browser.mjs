@@ -86,6 +86,26 @@ try{
   ui.destroy();host.remove();return hidden&&shown&&hiddenAgain;
  })()`);
  assert(hiddenSidebar,'sidebar can be completely hidden and restored');
+ const sidebarModes=await evaluate(`(async()=>{
+  const select=document.getElementById('sidebarMode');
+  for(const mode of ['native','overlay','hidden']){
+   select.value=mode;await select.onchange();
+   const hidden=(await chrome.storage.local.get('hideSidebar')).hideSidebar;
+   const overlay=(await chrome.storage.local.get('optimizeSidebar')).optimizeSidebar;
+   if(hidden!==(mode==='hidden')||overlay!==(mode!=='native'))return false;
+  }
+  return true;
+ })()`);
+ assert(sidebarModes,'sidebar selector preserves compatible settings');
+ await evaluate(`document.getElementById('moreToggle').onclick()`);
+ await send('Emulation.setDeviceMetricsOverride',{width:460,height:1250,deviceScaleFactor:1,mobile:false});
+ for(const theme of ['light','dark']){
+  await evaluate(`(async()=>{document.getElementById('themeChoice').value='${theme}';await document.getElementById('themeChoice').onchange();})()`);
+  const shot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+  await fs.writeFile(path.join(out,'settings-'+theme+'.png'),Buffer.from(shot.data,'base64'));
+ }
+ await evaluate(`(async()=>{document.getElementById('moreToggle').onclick();document.getElementById('themeChoice').value='light';await document.getElementById('themeChoice').onchange();})()`);
+ await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
  const banner=await evaluate(`({visible:!document.getElementById('updateBanner').hidden,version:document.getElementById('updateAdvice').textContent,url:document.getElementById('installUpdate').href,collapsed:!document.getElementById('editor').closest('details').open})`);

@@ -21,8 +21,7 @@
 <main>
   <div class="workspace card">
     <section class="compose-card">
-      <label for="workDomain">工作范围</label>
-      <select id="workDomain"><option value="plan">计划图</option><option value="projects">项目</option><option value="tasks">任务</option><option value="requests">申请审批</option></select>
+      <select id="workDomain" aria-label="工作范围"><option value="plan">计划图</option><option value="projects">项目</option><option value="tasks">任务</option><option value="requests">申请审批</option></select>
       <section id="recordsPanel" hidden>
         <div class="actions"><button id="refreshRecords">刷新记录</button><a class="button" href="https://plan.fpgabbs.cn/records.html" target="_blank" rel="noopener noreferrer">网站管理 ↗</a></div>
         <input id="recordSearch" type="search" aria-label="搜索记录" placeholder="编号、名称、负责人">
@@ -32,7 +31,7 @@
       <div class="field-heading">
         <label id="requestLabel" for="request">需求</label>
       </div>
-      <textarea id="request" rows="3" placeholder="可跨计划、跨任务新建或调整。写下目标和范围，也可留空。"></textarea>
+      <textarea id="request" rows="3" placeholder="跨计划、跨任务描述需求，也可留空"></textarea>
       <div class="actions prompt-actions">
         <button id="copyMcpPrompt" class="primary">复制给 MCP AI</button>
         <button id="copyPrompt">复制给普通 AI</button>
@@ -51,7 +50,6 @@
   </section>
   <p id="message" role="status"></p>
   <div id="recoveryActions" hidden class="button-row"><button id="diagnoseRequest">检查原请求</button><button id="copyHelp">复制给 AI 求助</button></div>
-  <p id="helpPrivacy" class="hint" hidden>求助内容含计划信息，仅发给可信 AI。</p>
   <details id="resultDetails" hidden>
     <summary>执行结果</summary><button id="copyResult" class="text-button">复制结果</button><pre id="output"></pre>
   </details>
@@ -80,8 +78,7 @@
       <label for="themeChoice">配色<select id="themeChoice"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
       <label for="densityChoice">布局<select id="densityChoice"><option value="comfortable">舒展</option><option value="compact">紧凑</option></select></label>
     </div>
-    <div class="setting-row"><label for="hideSidebar">隐藏网站计划侧栏</label><input id="hideSidebar" type="checkbox"></div>
-    <div class="setting-row"><label for="optimizeSidebar">点击展开计划侧栏</label><input id="optimizeSidebar" type="checkbox"></div>
+    <div class="setting-row sidebar-setting"><label for="sidebarMode">网站计划侧栏</label><select id="sidebarMode"><option value="native">网站默认</option><option value="overlay">点击展开</option><option value="hidden">隐藏，可从浮动入口恢复</option></select></div>
     <div class="setting-row"><span id="mcpState" role="status">MCP 未连接</span><button id="disconnectMcp">断开</button></div>
     <div class="setting-row software-update">
       <span id="updateStatus" role="status">检查更新中</span>

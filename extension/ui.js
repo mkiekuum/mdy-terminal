@@ -36,7 +36,7 @@ const updatePromise=(async()=>{
  catch{updateReport={status:'unknown',currentVersion:VERSION,reason:'请确认已重新加载插件，并检查网络后重新打开。'};}
  $('updateStatus').textContent='v'+VERSION+' · '+({available:'新版 v'+updateReport.latestVersion,current:'已是最新版',ahead:'高于当前正式版',unknown:'暂无法检查更新'}[updateReport.status]);
  if(updateReport.status==='available'&&updateReport.releaseUrl?.startsWith('https://github.com/mkiekuum/xutu-control-terminal/releases/')){$('updateAdvice').textContent='建议更新至 v'+updateReport.latestVersion;$('updateBanner').hidden=false;$('installUpdate').href=updateReport.releaseUrl;$('installUpdate').hidden=false;}
- $('moreLabel').textContent=updateReport.status==='available'?'设置 · 新版':'设置';$('moreLabel').dataset.update=String(updateReport.status==='available');
+ $('moreLabel').textContent='设置';
 })();
 const envelope=(op,target)=>({protocol:'xutu.command/v1',requestId:crypto.randomUUID(),...(tabId()?{tabId:tabId()}:{}),steps:[{id:'read',op,...(target?{target}:{})}]});
 function data(result){if(result.status!=='success')throw Error(summarize(result));return result.steps[0].data;}
@@ -73,7 +73,7 @@ function mergeWarnings(result) {
   '重复连线 ' + edge.from + ' → ' + edge.to + '，已有间接路径 ' + edge.alternatePath.join(' → ') + '。' + edge.message
  )).join('\n');
 }
-function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';$('helpPrivacy').hidden=result.status==='success';message([summarize(result),mergeWarnings(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
+function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';message([summarize(result),mergeWarnings(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
 async function execute(command){let result;try{result=await send({kind:'run',command});}catch{result={requestId:command.requestId,status:'failed',code:'TIMEOUT_RESULT_UNKNOWN',message:'连接中断，执行结果尚未确认。请只读核对，不要重新提交。'};}showResult(result,command);if(result.code==='HISTORY_SNAPSHOT_INCOMPLETE'||result.steps?.some(x=>x.code==='HISTORY_SNAPSHOT_INCOMPLETE'))await historyUI.inspectPending();}
 function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='task.merge'||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['task.merge','node.remove','edge.remove'].includes(c.op)));}
 $('execute').onclick=()=>busy('execute',async()=>{
@@ -117,8 +117,7 @@ $('copyMcpPrompt').onclick = () => busy('copyMcpPrompt', async () => {
 });
 async function refreshMcpSettings() {
  const {mcpConnection, mcpBridgeStatus, optimizeSidebar, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'optimizeSidebar', 'hideSidebar']);
- $('optimizeSidebar').checked = !!optimizeSidebar;
- $('hideSidebar').checked = !!hideSidebar;
+ $('sidebarMode').value = hideSidebar ? 'hidden' : optimizeSidebar ? 'overlay' : 'native';
  const state = mcpBridgeStatus?.state;
  let label = 'MCP 未连接';
  if (mcpConnection?.enabled) {
@@ -130,8 +129,14 @@ async function refreshMcpSettings() {
  $('disconnectMcp').hidden = !mcpConnection;
 }
 refreshMcpSettings();
-$('optimizeSidebar').onchange=async()=>{try{await chrome.storage.local.set({optimizeSidebar:$('optimizeSidebar').checked});for(const t of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:t.id},files:['sidebar-loader.js']});message('网页侧栏设置已保存；只影响界面，不修改计划。');}catch(e){message(e.message,true);}};
-$('hideSidebar').onchange=async()=>{try{await chrome.storage.local.set({hideSidebar:$('hideSidebar').checked});for(const t of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:t.id},files:['sidebar-loader.js']});message('侧栏设置已保存，网页左侧“计划”按钮可恢复。');}catch(e){message(e.message,true);}};
+$('sidebarMode').onchange=async()=>{
+ const mode=$('sidebarMode').value;
+ try{
+  await chrome.storage.local.set({hideSidebar:mode==='hidden',optimizeSidebar:mode!=='native'});
+  for(const tab of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidebar-loader.js']});
+  message('侧栏设置已保存。');
+ }catch(error){message(error.message,true);}
+};
 $('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews']);$('mcpState').textContent='已断开，清除本机连接密钥。';});
 
 chrome.storage.onChanged?.addListener((changes, area) => {
