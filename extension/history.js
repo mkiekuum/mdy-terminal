@@ -3,7 +3,7 @@ import {fail,clone,equivalent,operationId,clean} from './core.js';
 import {accountKey,digest} from './local-store.js';
 import {writes,ApiAdapter} from './api.js';
 export const isBusinessWrite=s=>writes.includes(s.op)||s.op==='script.execute';
-const supported=s=>!s.op.startsWith('review.')&&!s.op.startsWith('group.')&&!s.op.startsWith('project.')&&!['task.assign','task.updateStatus','history.restore','script.execute'].includes(s.op);
+const supported=s=>!s.op.startsWith('records.')&&!s.op.startsWith('review.')&&!s.op.startsWith('group.')&&!s.op.startsWith('project.')&&!['task.assign','task.updateStatus','history.restore','script.execute'].includes(s.op);
 const model=s=>s?.record?.current||null;
 export function businessDiff(a,b){
  const out=[];for(const field of ['title','planNumber','planOwner','start','deadline','baseline','positions'])if(!equivalent(a?.[field],b?.[field]))out.push({domain:field,before:a?.[field]??null,after:b?.[field]??null});

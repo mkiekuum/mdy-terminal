@@ -21,8 +21,16 @@
 <main>
   <div class="workspace card">
     <section class="compose-card">
+      <label for="workDomain">工作范围</label>
+      <select id="workDomain"><option value="plan">计划图</option><option value="projects">项目</option><option value="tasks">任务</option><option value="requests">申请审批</option></select>
+      <section id="recordsPanel" hidden>
+        <div class="actions"><button id="refreshRecords">刷新记录</button><a class="button" href="https://plan.fpgabbs.cn/records.html" target="_blank" rel="noopener noreferrer">网站管理 ↗</a></div>
+        <input id="recordSearch" type="search" aria-label="搜索记录" placeholder="编号、名称、负责人">
+        <select id="recordChoice" aria-label="选择修改对象"><option value="">选择修改对象</option></select>
+        <p id="recordStatus" role="status"></p>
+      </section>
       <div class="field-heading">
-        <label id="requestLabel" for="request">计划需求</label>
+        <label id="requestLabel" for="request">需求</label>
       </div>
       <textarea id="request" rows="3" placeholder="可跨计划、跨任务新建或调整。写下目标和范围，也可留空。"></textarea>
       <div class="actions prompt-actions">

@@ -1,3 +1,4 @@
+import {recordReads,recordWrites,runRecord} from './records.js';
 import {inspectFlow,enforceFlow} from './flow-check.js';
 import {verifySaved} from './recovery.js';
 import {fail,assert,clone,edge,nativePlan,validatePlan,validDate,equivalent,operationId} from './core.js';
@@ -10,7 +11,8 @@ export const writes=['plan.create','plan.update','plan.replace','plan.copy','pla
 writes.push('plan.restoreSnapshot','node.batchUpdate','node.renumber');
 writes.push('graph.simplify','plan.batch');
 writes.push('task.merge','task.split');
-writes.push('task.assign','task.updateStatus');
+writes.push('task.assign','task.updateStatus',...recordWrites);
+Object.assign(reads,recordReads);
 export async function canEditPlan(request, record, session) {
  if (session.role === 'admin' || record.current.planOwner === session.actor) return true;
  if (Array.isArray(record.collaborators) && record.collaborators.includes(session.actor)) return true;
@@ -47,6 +49,7 @@ export class ApiAdapter{
  async resolve(t={}){if(t.id)return t.id;assert(typeof t.number==='string','target.id 或 number 必填');const items=(await this.request('/api/plans')).filter(p=>p.planNumber===t.number&&(!t.owner||p.planOwner===t.owner));if(items.length!==1)fail(items.length?'TARGET_AMBIGUOUS':'TARGET_NOT_FOUND');return items[0].id;}
  async run(s,e){
   const trace={};try{return await this.runInternal(s,e,trace);}catch(error){
+   if(recordWrites.includes(s.op))throw error;
    if(writes.includes(s.op)){
     const conflict=error.code==='VERSION_CONFLICT';
     error.outcome=conflict||['PERMISSION_DENIED','NOT_LOGGED_IN','INVALID_SCHEMA','INVALID_SITE_DATA'].includes(error.code)||!trace.submitted?'not_executed':'unconfirmed';
@@ -71,6 +74,7 @@ export class ApiAdapter{
  if (['plan.create','plan.copy'].includes(op) && p.owner && p.owner !== session.actor && session.role !== 'admin') {
   fail('PERMISSION_DENIED','当前账号只可为自己创建计划；指定其他负责人需管理员权限。');
  }
+ if(recordWrites.includes(op))return await runRecord(this.request,s,e);
  if(reads[op])return {data:await this.request(reads[op]),serverVerified:true};
  if(['task.assign','task.updateStatus'].includes(op)){
  const planId=await this.resolve(t),items=await this.request('/api/work-tasks');

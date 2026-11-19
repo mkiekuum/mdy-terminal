@@ -1,3 +1,4 @@
+import {setupRecordsPanel} from './ui-records.js';
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
 import {createConnection} from './mcp-connection.js';
@@ -46,7 +47,8 @@ async function checkCompatibility(){const generation=++compatibilityGeneration,s
  catch{report={status:'unavailable',checkedAt:new Date().toISOString(),checks:[{id:'connection',status:'fail',message:'无法读取兼容性报告，请确认插件已重新加载且序图网页已打开。'}],scope:'未执行业务写入。'};}
  if(generation===compatibilityGeneration&&selected===tabId())showCompatibility(report);return report;
 }
-async function readContext(projectGroups='selected'){if(!tabId())return {complete:false,plan:null,warnings:['未打开序图网页，先根据需求提问，不猜测已有计划。']};try{const command=envelope('site.context');command.steps[0].params={projectGroups};const context=data(await send({kind:'run',command}));if(context.compatibility)showCompatibility(context.compatibility);return context;}catch{return {complete:false,plan:null,warnings:['本次计划上下文读取失败；请先核对登录、目标网页及兼容性，不得假设当前计划内容。'],compatibility:compatibilityReport};}}
+const recordContext=setupRecordsPanel(document,async op=>data(await send({kind:'run',command:envelope(op)})));
+async function readContext(projectGroups='selected'){if($('workDomain').value!=='plan')return recordContext();if(!tabId())return {complete:false,plan:null,warnings:['未打开序图网页，先根据需求提问，不猜测已有计划。']};try{const command=envelope('site.context');command.steps[0].params={projectGroups};const context=data(await send({kind:'run',command}));if(context.compatibility)showCompatibility(context.compatibility);return context;}catch{return {complete:false,plan:null,warnings:['本次计划上下文读取失败；请先核对登录、目标网页及兼容性，不得假设当前计划内容。'],compatibility:compatibilityReport};}}
 $('checkCompatibility').onclick=()=>busy('checkCompatibility',checkCompatibility);
 $('copyCompatibility').onclick=()=>busy('copyCompatibility',async()=>{const report=await checkCompatibility();await clipboard(formatCompatibility(report));message('兼容状态已复制，可交给维护者；不含计划内容。');});
 async function refresh(){

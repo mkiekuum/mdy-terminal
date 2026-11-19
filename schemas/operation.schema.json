@@ -1554,6 +1554,399 @@
     {
       "type": "object",
       "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.meta"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.projects"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.tasks"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.requests"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.submit"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "project",
+                "task"
+              ]
+            },
+            "action": {
+              "enum": [
+                "create",
+                "update"
+              ]
+            },
+            "targetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "before": {
+              "type": "object"
+            },
+            "payload": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "customer",
+                        "internal"
+                      ]
+                    },
+                    "referenceNumber": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "shortName": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "owner": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "已启动",
+                        "未启动",
+                        "暂停",
+                        "已完成"
+                      ]
+                    },
+                    "startDate": {
+                      "type": "string"
+                    },
+                    "targetDate": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "referenceNumber",
+                    "shortName",
+                    "owner"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "type": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "subject": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "owner": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "completedAt": {
+                      "type": "string"
+                    },
+                    "targetDate": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "deliverable": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "projectId",
+                    "type",
+                    "subject",
+                    "owner"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "direct": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "action",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.review"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "before": {
+              "type": "object"
+            },
+            "decision": {
+              "enum": [
+                "approve",
+                "reject"
+              ]
+            },
+            "payload": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "customer",
+                        "internal"
+                      ]
+                    },
+                    "referenceNumber": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "shortName": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "owner": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "已启动",
+                        "未启动",
+                        "暂停",
+                        "已完成"
+                      ]
+                    },
+                    "startDate": {
+                      "type": "string"
+                    },
+                    "targetDate": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "referenceNumber",
+                    "shortName",
+                    "owner"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "type": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "subject": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "owner": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "completedAt": {
+                      "type": "string"
+                    },
+                    "targetDate": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "deliverable": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "projectId",
+                    "type",
+                    "subject",
+                    "owner"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "before",
+            "decision",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.link"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "project",
+                "task"
+              ]
+            },
+            "targetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "before": {
+              "type": "object"
+            },
+            "planId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "targetId",
+            "before",
+            "planId"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "op",
         "params"
       ],
