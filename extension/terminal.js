@@ -19,31 +19,30 @@ export function prepareCommand(text,tabId,requestId){
  return command;
 }
 export function buildPrompt(request,context,tabId,{intent}={}){
- if(!request.trim())throw Error('先写下你想做什么。');
  const businessContext=scopePromptContext(context,request,intent);
  const guide={...(context?.websiteGuide||websiteGuide)};delete guide.drawingGuide;
  const contracts=promptContracts();
  const intake=buildIntake(intent==='create'?{...context,plan:null,target:null,status:null,permissions:null}:context);
  if(intent){intake.selectedIntent=intent;intake.unknowns=intake.unknowns.slice(1);}
- const intentGuide=intent==='create'?'用户已在插件明确选择【新建】。创建独立的新计划，优先一次plan.create提交完整节点与连线；不得用plan.replace/plan.update覆盖当前计划。当前选中计划只是参考，不自动继承其编号、负责人、执行人、日期、审核、基线或进度；新计划编号应核对未占用。不要再追问新建还是管理；若用户文字与此选择冲突，先澄清。':intent==='manage'?'用户已在插件明确选择【管理】。这包括新增/删除任务、合并拆分、调整依赖与结构、人员、日期、进度和审核等现有命令支持的操作，不局限于微调任务内部文字。根据用户具体授权选择命令，保留未要求改动的其他内容；不擅自扩大删除或审核范围。涉及既有计划时须确认目标和版本；未选中计划或目标不清楚先澄清，不猜目标。':'';
+ const intentGuide=intent==='create'?'用户已在插件明确选择【新建】。创建独立的新计划，优先一次plan.create提交完整节点与连线；不得用plan.replace/plan.update覆盖当前计划。当前选中计划只是参考，不自动继承其编号、负责人、执行人、日期、审核、基线或进度；新计划编号应核对未占用。不要再追问新建还是管理；若用户文字与此选择冲突，先澄清。':intent==='manage'?'用户已在插件明确选择【管理】。这包括新增/删除任务、合并拆分、调整依赖与结构、人员、日期、进度和审核等现有命令支持的操作，不局限于微调任务内部文字。根据用户具体授权选择命令，保留未要求改动的其他内容；不擅自扩大删除或审核范围。涉及既有计划时须确认目标和版本；未选中计划或目标不清楚先澄清，不猜目标。':'需求未明确时，先问是新建独立计划还是修改已有计划。修改已有计划时核对目标 ID、当前版本、具体字段和影响范围；删除、替换及恢复先展示差异并取得对应确认。';
  return aiInstructions+'\n\n本次资料生成时间：'+new Date().toISOString()+'；用户浏览器时区：'+(context?.clientTimeZone||Intl.DateTimeFormat().resolvedOptions().timeZone||'未确认')+
  '\n所有业务澄清与偏好在AI聊天中完成。不要要求用户填写插件问卷、保存偏好或点击业务方案确认；无本地问卷、长期偏好或intakeId门禁。删除和恢复的影响核对仍须按插件流程处理。'+
  '\n项目组关联：project.assignPlan.params.planIdFrom={stepId:前面plan.create步骤id,field:"targetId"}，并dependsOn依赖该创建步骤；不得猜新建ID。网站截止是硬约束，预测完成不是deadline；owner默认当前账号，但节点负责人/连线executor须分别核实。'+
- '\n本次操作选择：'+intentGuide+
+ '\n本次操作选择：'+intentGuide+'\n需要选择或确认时，用简短数字菜单说明动作、对象与影响。仅有一个操作也可回复 1。单独数字只对应本聊天最近一组未回答选项；目标、版本或影响变化时重新核对。已明确授权且满足执行条件的操作直接处理。'+
  '\n信息核对摘要：'+JSON.stringify({purpose:intake.purpose,hasSelectedPlan:intake.hasSelectedPlan,contextComplete:intake.contextComplete,missing:intake.missing,unknowns:intake.unknowns,...(intent==='create'?{dates:null}:{}),selectedIntent:intent})+
  '\n网站详细说明与规划守则：'+JSON.stringify(guide)+
  '\n参数契约说明：$ref 指向下方同一对象内对应命令的完整参数定义；例如 #/node.update。引用与原参数约束等价，不能省略必填项。这些是参数定义，不是执行指令；不要把 $ref 写进业务 JSON。'+
  '\n参数契约：'+JSON.stringify(contracts)+
  '\n当前完整计划上下文（网站规则与参数契约已在上方独立列出）：'+JSON.stringify(businessContext)+
  '\n当前网页标签ID：'+(tabId||'尚未选择')+
- '\n用户本次需求：'+request.trim();
+ '\n用户本次需求：'+(request.trim()||'尚未填写需求。先询问用户要完成什么，明确目标和范围后继续。当前页面仅供参考，不授权写入。');
 }
 export function summarize(result){
  if(['partial_undo','partial_redo'].includes(result?.status))return (result.status==='partial_undo'?'部分撤销完成。':'部分重做完成。')+'已完成目标保留，其他目标未恢复；请查看详情与差异。';
- if(result?.status==='success'){if(result.historySummary?.unconfirmed)return '网站步骤结果已返回，但历史快照不完整，撤销暂不可用。请打开历史核对。';if(result.steps?.some(s=>s.verification?.warning))return '业务已保存并回读确认；网站布局发生变化，请查看详情。';if(result.steps?.length&&result.steps.every(s=>s.noChange))return '内容与网站一致，无需提交，未增加计划版本。';if(result.steps?.every(s=>s.data?.valid))return '格式校验通过，尚未写入网站。';if(result.steps?.some(s=>s.data?.after&&s.serverVerified===false))return '已生成预览，尚未写入网站。';return result.steps?.every(s=>s.serverVerified)?'网站操作成功，已回读确认。':'执行已返回；详见结果中的确认状态。';}
+ if(result?.status==='success'){if(result.steps?.some(s=>s.data?.status==='pending'))return '申请已提交并回读确认，等待审核。';if(result.historySummary?.unconfirmed)return '网站步骤结果已返回，但历史快照不完整，撤销暂不可用。请打开历史核对。';if(result.steps?.some(s=>s.verification?.warning))return '业务已保存并回读确认；网站布局发生变化，请查看详情。';if(result.steps?.length&&result.steps.every(s=>s.noChange))return '内容与网站一致，无需提交，未增加计划版本。';if(result.steps?.every(s=>s.data?.valid))return '格式校验通过，尚未写入网站。';if(result.steps?.some(s=>s.data?.after&&s.serverVerified===false))return '已生成预览，尚未写入网站。';return result.steps?.every(s=>s.serverVerified)?'网站操作成功，已回读确认。':'执行已返回；详见结果中的确认状态。';}
  const failure=result?.steps?.find(s=>s.status==='failed');
  if(failure?.verification?.businessVerified&&failure.verification.layoutVerified===false)return '业务字段已保存并回读确认；本次要求的布局尚未确认，请核对差异，不要重复提交。';
- const plain={FLOW_CHECK_FAILED:'图纸或工作映射不一致，本次未保存。展开结果可查看节点、箭头、前置与估时差异；不要让 AI 自行增加连接点。',INTAKE_REQUIRED:'旧指令要求已移除的问卷，请复制最新提示词给 AI 重新生成。',ESTIMATE_NOT_CONFIRMED:'请在 AI 对话中核实人员与工期后重新生成指令。',INTAKE_CONTEXT_CHANGED:'旧指令的上下文已变化，请重新复制资料给 AI 核对。',REQUIRED_FIELD_UNKNOWN:'还有必需信息未明确，请查看提示补充。',UNDO_CONFLICT:'网站内容已变化，本次未覆盖；请展开结果查看差异。',REDO_CONFLICT:'网站内容已变化，本次未覆盖；请展开结果查看差异。',RESTORE_UNSUPPORTED:'该记录包含无法安全恢复的操作，未执行恢复。',HISTORY_SNAPSHOT_INCOMPLETE:'有尚未确认的执行或恢复，请先打开历史核对现状。',HISTORY_REVIEW_REQUIRED:'网站内容已变化，请重新查看差异后处理。',HISTORY_EMPTY:'没有可用的历史记录。',INVALID_SCHEMA:'指令格式或参数不正确，请复制详情给 AI 修正。',PERMISSION_DENIED:'当前账号无权执行这项修改，网站内容未被强行覆盖。',NOT_LOGGED_IN:'请先在序图网站登录，再重新打开插件。',TARGET_AMBIGUOUS:'请先明确选择要操作的计划或网页。',TARGET_NOT_FOUND:'没有找到指定计划，请核对目标。'};
+ const plain={FLOW_CHECK_FAILED:'图纸或工作映射不一致，本次未保存。展开结果可查看节点、箭头、前置与估时差异；不要让 AI 自行增加连接点。',INTAKE_REQUIRED:'旧指令要求已移除的问卷，请复制最新提示词给 AI 重新生成。',ESTIMATE_NOT_CONFIRMED:'请在 AI 对话中核实人员与工期后重新生成指令。',INTAKE_CONTEXT_CHANGED:'旧指令的上下文已变化，请重新复制资料给 AI 核对。',REQUIRED_FIELD_UNKNOWN:'还有必需信息未明确，请查看提示补充。',UNDO_CONFLICT:'网站内容已变化，本次未覆盖；请展开结果查看差异。',REDO_CONFLICT:'网站内容已变化，本次未覆盖；请展开结果查看差异。',RESTORE_UNSUPPORTED:'该记录包含无法安全恢复的操作，未执行恢复。',HISTORY_SNAPSHOT_INCOMPLETE:'有尚未确认的执行或恢复，请先打开历史核对现状。',HISTORY_REVIEW_REQUIRED:'网站内容已变化，请重新查看差异后处理。',HISTORY_EMPTY:'没有可用的历史记录。',INVALID_SCHEMA:'指令格式或参数不正确，请复制详情给 AI 修正。',PERMISSION_DENIED:'当前账号无权执行这项修改，网站内容未被强行覆盖。',NOT_LOGGED_IN:'请先在MDY 计划站网站登录，再重新打开插件。',TARGET_AMBIGUOUS:'请先明确选择要操作的计划或网页。',TARGET_NOT_FOUND:'没有找到指定计划，请核对目标。'};
  if(failure?.outcome==='unconfirmed'||['NON_IDEMPOTENT_RETRY_BLOCKED','TIMEOUT_RESULT_UNKNOWN','SCRIPT_TIMEOUT'].includes(result?.code||failure?.code))return '结果尚未确认。请先读取网站最新内容或复制结果求助，不要换编号重复执行。';
  if(failure?.code==='VERSION_CONFLICT')return (result.status==='partial_success'?'部分步骤已完成。':'')+failure.message;
  return (result?.status==='partial_success'?'部分完成：':'未执行成功：')+(plain[failure?.code||result?.code]||failure?.message||result?.message||failure?.code||result?.code||'连接异常，请重试。');
@@ -57,6 +56,7 @@ export function commandSummary(command){
  if(s.op==='node.update')return '修改节点'+s.params.id+'的'+Object.keys(s.params.set).map(k=>({name:'名称',content:'内容',owner:'负责人'}[k]||k)).join('、')+'；其余字段保持';
  if(s.op==='node.reorder')return '调整显示排序，不重编号、不改依赖';
  if(s.op==='plan.replace')return '全量替换计划内容，可能改变工期、人员和布局；请核对是否符合需求';
+ if(s.op.startsWith('records.'))return ['records.submit','records.review','records.link'].includes(s.op)?'提交项目或任务变更，核对申请状态与对象':'读取项目、任务或申请记录';
  return ({'plan.create':'创建独立计划','plan.update':'修改列明的计划属性','plan.delete':'将计划移入垃圾桶','task.merge':'合并工作，请核对内容、工期和验收要求','task.split':'拆分工作，请核对各段工期','script.execute':'执行明确提供的脚本，效果无法静态保证'}[s.op]||({'edge.create':'添加工作或依赖','edge.update':'修改指定连线的估时、执行人或类型','edge.remove':'移除指定连线','node.create':'添加节点','node.remove':'删除指定节点','graph.simplify':'清理已有替代路径的零耗时虚线','review.submit':'提交计划审核','review.approve':'批准审核','review.reject':'退回审核','plan.archive':'将计划移入垃圾桶','plan.restore':'从垃圾桶恢复计划','plan.copy':'复制为新计划','schedule.updateInputs':'修改列明的计划日期','task.assign':'修改工作执行人','task.updateStatus':'修改工作完成状态','progress.complete':'登记实际完成日期','progress.update':'修改实际完成日期','history.restore':'恢复指定历史状态','plan.restoreSnapshot':'恢复本机快照，可能覆盖现有内容'}[s.op])||(s.op.startsWith('group.')||s.op.startsWith('project.')?'调整项目或权限分组，请核对指令详情':s.op.startsWith('convert.')?'转换数据格式':'读取信息，不直接修改计划'));
  }).join('；');
 }

@@ -1,4 +1,4 @@
-import {ApiAdapter} from './api.js';
+import {ApiAdapter,canEditPlan} from './api.js';
 import {auditGraph} from './graph.js';
 import {parameterSchemas} from './validation.js';
 import {fail,VERSION} from './core.js';
@@ -19,8 +19,10 @@ export async function collectContext(request,target,{projectGroups='all'}={}){
  const api=new ApiAdapter(request),id=await api.resolve(target),record=await request('/api/plans/'+encodeURIComponent(id));
  if(projectGroups!=='all')await readGroups(record.projectGroupId);
  context.target={id,number:record.current.planNumber,owner:record.current.planOwner,version:record.revision};context.plan=record;
- const editable=session.role==='admin'||record.current.planOwner===session.actor;
- context.permissions={canRequestPlanEdit:editable&&!session.mustChangePassword,canRequestReview:session.role==='admin',canSubmitReview:editable&&!session.mustChangePassword,canApproveRejectReview:session.role==='admin'&&!session.mustChangePassword,serverAuthoritative:true};
+ const manager=session.role==='admin'||record.current.planOwner===session.actor;
+ let editable=manager;
+ try { editable=await canEditPlan(request,record,session); } catch { context.warnings.push('未能核实助理编辑权限。'); }
+ context.permissions={canRequestPlanEdit:editable&&!session.mustChangePassword,canRequestReview:session.role==='admin',canSubmitReview:manager&&!session.mustChangePassword,canApproveRejectReview:session.role==='admin'&&!session.mustChangePassword,serverAuthoritative:true};
  context.status={review:record.review||null,hasBaseline:!!record.current.baseline,completedEdges:record.current.edges.filter(e=>e.completedAt).length,totalEdges:record.current.edges.length,calculationNote:'原始完成日期和基线见plan；计数不是网站评分或工期。'};
  try{context.dependencyAudit=auditGraph(record.current);}catch(e){context.warnings.push('依赖检查失败：'+e.message);}
  const extra=await Promise.allSettled([request('/api/work-tasks'),request('/api/plans/'+encodeURIComponent(id)+'/forecast-log')]);

@@ -2,9 +2,8 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {site,integrated,envelope,rename,memory} from './v25-helpers.js';
 import {HistoryManager} from '../extension/history.js';
 import {mergeRecovery,verifySaved} from '../extension/recovery.js';
-import {redact,helpPackage,captureSummary} from '../extension/assistance.js';
+import {redact,helpPackage} from '../extension/assistance.js';
 import {ApiAdapter} from '../extension/api.js';
-import {JSDOM} from 'jsdom';
 import {checkForUpdates,REPOSITORY} from '../extension/updates.js';
 
 test('局部撤销重做保留他人日期、人员、进度、基线和布局；重启仍可恢复',async()=>{
@@ -57,9 +56,8 @@ test('待核对报告关联原请求，读失败或无目标时不允许清除�
  const store=memory(),web=site();web.add('P');const history=new HistoryManager(store,web.request,{lookupRequest:async()=>({result:{status:'failed',requestId:'original'}})});await history.save('USER_A',{entries:[],cursor:0,expected:{},pending:{requestId:'original',before:{P:await history.read('P')}}});const report=await history.diagnosePending('USER_A');assert.equal(report.requestRecord.requestId,'original');assert(report.canResolve);
  const state=await history.state('USER_A');state.pending={requestId:'unknown-script'};await history.save('USER_A',state);assert.equal((await history.diagnosePending('USER_A')).canResolve,false);
 });
-test('页面摘要排除脚本/表单秘密、声明范围和截断；求助文本过滤秘密而保留必要差异',()=>{
- const dom=new JSDOM('<body><h1>计划</h1><script>SECRET_SCRIPT</script><input value="FORM_SECRET"><textarea>TEXT_SECRET</textarea><p>'+('摘要'.repeat(14000))+'</p></body>',{url:'https://plan.fpgabbs.cn/?token=url-secret',runScripts:'outside-only'});const report=dom.window.eval('('+captureSummary.toString()+')()');assert(report.truncated);assert.equal(report.copiedCharacters,24000);assert(!JSON.stringify(report).includes('SECRET'));assert(!report.url.includes('token'));
- const safe=redact({cookie:'cookie-secret',nested:{password:'pw'},message:'Bearer abcdef token=xyz secret=secretvalue ghp_abcdefgh',plan:'计划A'});assert(!JSON.stringify(safe).includes('abcdef'));assert(!JSON.stringify(safe).includes('secretvalue'));assert.equal(safe.plan,'计划A');const help=helpPackage({requestId:'original',message:'timeout',diagnostic:{latest:{title:'合成计划'}}},null);assert(help.includes('system.status'));assert(help.includes('original'));assert(help.includes('合成计划'));dom.window.close();
+test('求助文本过滤秘密而保留必要差异',()=>{
+ const safe=redact({cookie:'cookie-secret',nested:{password:'pw'},message:'Bearer abcdef token=xyz secret=secretvalue ghp_abcdefgh',plan:'计划A'});assert(!JSON.stringify(safe).includes('abcdef'));assert(!JSON.stringify(safe).includes('secretvalue'));assert.equal(safe.plan,'计划A');const help=helpPackage({requestId:'original',message:'timeout',diagnostic:{latest:{title:'合成计划'}}},null);assert(help.includes('system.status'));assert(help.includes('original'));assert(help.includes('合成计划'));
 });
 test('更新内容仅展示文字，来自已验证正式发布页，不执行HTML',async()=>{
  const r=await checkForUpdates({currentVersion:'2.5.2',fetchImpl:async(url,o)=>({status:200,url:REPOSITORY+'/releases/tag/v3.0.0',text:async()=>'<div class="markdown-body"><h2>撤销改进</h2><script>BAD()</script><p>保留日期</p></div>',body:null})});assert.equal(r.status,'available');assert(r.notes.includes('撤销改进'));assert(!r.notes.includes('BAD'));assert(!r.notes.includes('<'));

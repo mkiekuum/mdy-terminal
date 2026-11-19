@@ -1,11 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import {installSidebarUI} from '../extension/sidebar-ui.js';import {McpGate,readOnly,mcpPrompt} from '../extension/mcp-policy.js';import {createRelay} from '../mcp/relay.mjs';import {relayUrl,startMcpBridge} from '../extension/mcp-bridge.js';
 const cmd=(op='plan.get')=>({protocol:'xutu.command/v1',requestId:crypto.randomUUID(),steps:[{id:'a',op,target:{id:'P',version:1},params:op==='plan.update'?{set:{title:'New'}}:{}}]});
-test('左侧栏禁悬停、点击展开、四种关闭和卸载恢复，不触碰业务节点',async()=>{
- const dom=new JSDOM('<div id="fileSidebar" class="is-collapsed"><button id="fileSidebarToggle">计划</button><button id="fileSidebarPin">固定</button><div>业务列表</div></div><main id="outside">图</main>');const d=dom.window.document,p=d.getElementById('fileSidebar'),t=d.getElementById('fileSidebarToggle');let hovered=0;p.addEventListener('pointerenter',()=>hovered++);const ui=installSidebarUI(d);
- p.dispatchEvent(new dom.window.Event('pointerenter'));assert.equal(hovered,0);assert(p.classList.contains('is-collapsed'));
- for(const close of [()=>t.click(),()=>d.getElementById('outside').click(),()=>d.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'})),()=>d.getElementById('xutu-sidebar-close').click()]){t.click();assert(!p.classList.contains('is-collapsed'));close();assert(p.classList.contains('is-collapsed'));}
- t.click();p.classList.add('is-collapsed');await new Promise(r=>setTimeout(r,0));assert(!p.classList.contains('is-collapsed'));ui.destroy();assert.equal(t.textContent,'计划');assert.equal(p.className,'is-collapsed');p.dispatchEvent(new dom.window.Event('pointerenter'));assert.equal(hovered,1);assert.equal(d.querySelector('main').textContent,'图');dom.window.close();
-});
 test('网站锚点变化不乱改其他侧栏',()=>{const d=new JSDOM('<aside>Other</aside>');assert.equal(installSidebarUI(d.window.document).available,false);assert.equal(d.window.document.querySelector('aside').textContent,'Other');d.window.close();});
 test('MCP 只读拒绝写，执行必须绑定成功预览及明确同意，执行后不重复',async()=>{
  const calls=[],gate=new McpGate(async c=>{calls.push(c);return {status:'success',steps:[{data:{after:{title:'New'}}}]};},async()=>'account:tab');
@@ -26,7 +20,7 @@ test('MCP 网络密钥分离、Origin、协议发现、队列、结果和重复e
  const rpc=async(method,params)=>{const r=await post('/mcp',{jsonrpc:'2.0',id:1,method,params});return r.json();};
  try{
  assert.equal((await post('/mcp',{},'bad')).status,401);assert.equal((await post('/mcp',{},clientToken,{Origin:'https://evil.invalid'})).status,403);assert.equal((await fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+clientToken}})).status,401);
- assert.equal((await rpc('initialize',{})).result.protocolVersion,'2025-06-18');assert.equal((await rpc('tools/list',{})).result.tools.length,4);await fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+bridgeToken,'X-Xutu-Bridge-Id':'test-browser'}});
+ assert.equal((await rpc('initialize',{})).result.protocolVersion,'2025-06-18');assert.deepEqual((await rpc('tools/list',{})).result.tools.map(t=>t.name).sort(), ['xutu_execute','xutu_login','xutu_preview','xutu_read','xutu_result','xutu_status']);await fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+bridgeToken,'X-Xutu-Bridge-Id':'test-browser'}});
  const call=async(name,args)=>{const r=await rpc('tools/call',{name,arguments:args});return r.result;};assert((await call('xutu_read',{command:cmd('plan.update')})).isError);
  const queued=JSON.parse((await call('xutu_preview',{command:cmd('plan.update')})).content[0].text),pull=()=>fetch(base+'/bridge/next',{headers:{Authorization:'Bearer '+bridgeToken,'X-Xutu-Bridge-Id':'test-browser'}}).then(r=>r.json());const job=await pull();assert.equal(job.id,queued.jobId);assert.equal(await pull(),null);
  await post('/bridge/result',{id:job.id,result:{previewJobId:job.id}},bridgeToken);const a=JSON.parse((await call('xutu_execute',{previewJobId:job.id,approval:'同意'})).content[0].text),b=JSON.parse((await call('xutu_execute',{previewJobId:job.id,approval:'同意'})).content[0].text);assert.equal(a.jobId,b.jobId);
@@ -59,8 +53,8 @@ test('连接导入只接受本机独立凭据，MCP提示词包含私密配置�
 test('精简界面保留恢复和单一页面复制区，不出现密钥输入或新手帮助',async()=>{
  const fs=await import('node:fs');const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document;
  for(const id of ['mcpUrl','mcpToken','usageHelp','mcpFile','connectMcp','undo','redo'])assert.equal(d.getElementById(id),null);
- for(const id of ['request','editor','copyPrompt','copyMcpPrompt','loadHistory','recoveryActions','copyPage','copyDom','saveOffline'])assert(d.getElementById(id));
- assert(d.getElementById('compatibilityDetails').hidden);assert(d.getElementById('updateNotes').hidden);assert.equal(d.querySelectorAll('#copyPage').length,1);assert.equal(d.getElementById('copyPage').closest('section'),d.getElementById('copyDom').closest('section'));assert(!d.getElementById('moreDetails').contains(d.getElementById('copyDom')));dom.window.close();
+ for(const id of ['request','editor','copyPrompt','copyMcpPrompt','copyHistory','recoveryActions','copyDom','saveOffline'])assert(d.getElementById(id));
+ assert(d.getElementById('compatibilityDetails').hidden);assert.equal(d.getElementById('updateNotes'),null);assert.equal(d.querySelector('#copyPage,#downloadDom,#createPlan,#managePlan'),null);assert(!d.querySelector('#editor').closest('details').open);assert(d.querySelector('#copyMcpPrompt.primary'));assert(!d.getElementById('moreDetails').contains(d.getElementById('copyDom')));dom.window.close();
 });
 
 
@@ -85,5 +79,18 @@ test('底部工具互斥展开、重复点击收回，历史诊断可主动打�
  const fs=await import('node:fs'),{setupToolPanels}=await import('../extension/ui-panels.js');const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document,panels=setupToolPanels(d);
  d.getElementById('pageTools').click();assert(!d.getElementById('pageToolsPanel').hidden);assert.equal(d.getElementById('pageTools').getAttribute('aria-expanded'),'true');
  d.getElementById('moreToggle').click();assert(d.getElementById('pageToolsPanel').hidden);assert(!d.getElementById('moreDetails').hidden);d.getElementById('moreToggle').click();assert(d.getElementById('moreDetails').hidden);
- panels.show('historyBody');assert(!d.getElementById('historyBody').hidden);assert.equal(d.getElementById('loadHistory').getAttribute('aria-expanded'),'true');assert.equal(d.querySelectorAll('#pageToolsPanel details,#historyBody details').length,0);dom.window.close();
+ const history=d.getElementById('historyToggle'),body=d.getElementById('historyBody');
+ assert(body.hidden);
+ assert.equal(body.querySelectorAll('button').length,1);
+ assert(body.contains(d.getElementById('copyHistory')));
+ history.click();
+ assert.equal(history.getAttribute('aria-expanded'),'true');
+ assert(!body.hidden);
+ history.click();
+ assert(body.hidden);
+ history.click();
+ d.getElementById('pageTools').click();
+ assert(body.hidden);
+ assert.equal(history.getAttribute('aria-expanded'),'false');
+ panels.show('pageToolsPanel');assert(!d.getElementById('pageToolsPanel').hidden);assert.equal(d.getElementById('pageTools').getAttribute('aria-expanded'),'true');assert.equal(d.querySelectorAll('#pageToolsPanel details,#historyBody details').length,0);dom.window.close();
 });

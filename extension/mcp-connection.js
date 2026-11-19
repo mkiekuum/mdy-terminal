@@ -1,7 +1,7 @@
 import {relayUrl} from './mcp-bridge.js';
 // Import only the local relay credentials; never accept website sessions or arbitrary options.
 export function parseConnection(text,tabId){
- if(!Number.isInteger(tabId)||tabId<=0)throw Error('请先选择序图网页');
+ if(!Number.isInteger(tabId)||tabId<=0)throw Error('请先选择MDY 计划站网页');
  if(typeof text!=='string'||text.length>4096)throw Error('连接文件过大或格式不正确');
  let c;try{c=JSON.parse(text);}catch{throw Error('请选择本机 MCP 生成的 connection.json');}
  if(!c||typeof c!=='object')throw Error('连接文件格式不正确');
@@ -12,7 +12,7 @@ export function parseConnection(text,tabId){
 }
 
 export function createConnection(tabId,previous){
- if(!Number.isInteger(tabId)||tabId<=0)throw Error('请先选择序图网页');
+ if(!Number.isInteger(tabId)||tabId<=0)throw Error('请先选择MDY 计划站网页');
  const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
  const c=previous?.clientToken&&previous?.token?parseConnection(JSON.stringify({url:previous.url,clientToken:previous.clientToken,bridgeToken:previous.token}),tabId):parseConnection(JSON.stringify({url:'http://127.0.0.1:62924',clientToken:random(),bridgeToken:random()}),tabId);
  return {...c,bridgeId:previous?.bridgeId||c.bridgeId};

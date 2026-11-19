@@ -25,6 +25,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
       "type": "string",
       "minLength": 1
     },
+    "priority": {
+      "enum": [
+        "",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
     "number": {
       "type": "string",
       "minLength": 1
@@ -264,6 +272,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
           "type": "string",
           "minLength": 1
         },
+        "priority": {
+          "enum": [
+            "",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
         "startDate": {
           "type": "string"
         },
@@ -291,6 +307,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
     "title": {
       "type": "string",
       "minLength": 1
+    },
+    "priority": {
+      "enum": [
+        "",
+        "P1",
+        "P2",
+        "P3"
+      ]
     },
     "number": {
       "type": "string",
@@ -1317,6 +1341,360 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
 }
 ```
 
+## records.meta
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.projects
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.tasks
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.requests
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.submit
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": [
+        "project",
+        "task"
+      ]
+    },
+    "action": {
+      "enum": [
+        "create",
+        "update"
+      ]
+    },
+    "targetId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "before": {
+      "type": "object"
+    },
+    "payload": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "customer",
+                "internal"
+              ]
+            },
+            "referenceNumber": {
+              "type": "string",
+              "minLength": 1
+            },
+            "shortName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "category": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "已启动",
+                "未启动",
+                "暂停",
+                "已完成"
+              ]
+            },
+            "startDate": {
+              "type": "string"
+            },
+            "targetDate": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "referenceNumber",
+            "shortName",
+            "owner"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1
+            },
+            "boardName": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string"
+            },
+            "completedAt": {
+              "type": "string"
+            },
+            "targetDate": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "deliverable": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "projectId",
+            "type",
+            "subject",
+            "owner"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "direct": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "kind",
+    "action",
+    "payload"
+  ],
+  "additionalProperties": false
+}
+```
+
+## records.review
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "before": {
+      "type": "object"
+    },
+    "decision": {
+      "enum": [
+        "approve",
+        "reject"
+      ]
+    },
+    "payload": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "customer",
+                "internal"
+              ]
+            },
+            "referenceNumber": {
+              "type": "string",
+              "minLength": 1
+            },
+            "shortName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "category": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "已启动",
+                "未启动",
+                "暂停",
+                "已完成"
+              ]
+            },
+            "startDate": {
+              "type": "string"
+            },
+            "targetDate": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "referenceNumber",
+            "shortName",
+            "owner"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1
+            },
+            "boardName": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string"
+            },
+            "completedAt": {
+              "type": "string"
+            },
+            "targetDate": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "deliverable": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "projectId",
+            "type",
+            "subject",
+            "owner"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "requestId",
+    "before",
+    "decision",
+    "payload"
+  ],
+  "additionalProperties": false
+}
+```
+
+## records.link
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": [
+        "project",
+        "task"
+      ]
+    },
+    "targetId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "before": {
+      "type": "object"
+    },
+    "planId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "targetId",
+    "before",
+    "planId"
+  ],
+  "additionalProperties": false
+}
+```
+
 ## schedule.updateInputs
 
 ```json
@@ -1329,6 +1707,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
         "title": {
           "type": "string",
           "minLength": 1
+        },
+        "priority": {
+          "enum": [
+            "",
+            "P1",
+            "P2",
+            "P3"
+          ]
         },
         "startDate": {
           "type": "string"
@@ -2040,6 +2426,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
                         "type": "string",
                         "minLength": 1
                       },
+                      "priority": {
+                        "enum": [
+                          "",
+                          "P1",
+                          "P2",
+                          "P3"
+                        ]
+                      },
                       "startDate": {
                         "type": "string"
                       },
@@ -2078,6 +2472,14 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
                       "title": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "priority": {
+                        "enum": [
+                          "",
+                          "P1",
+                          "P2",
+                          "P3"
+                        ]
                       },
                       "startDate": {
                         "type": "string"

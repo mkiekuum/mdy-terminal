@@ -66,7 +66,7 @@
   },
   "authenticatedTests": false,
   "extensionLocal": {
-    "version": "3.1.2",
+    "version": "3.2.3",
     "operations": [
       "history.list",
       "history.undo",
@@ -78,8 +78,9 @@
       "site.html.chunk",
       "site.html.release",
       "history.preview",
-      "history.pending"
+      "history.pending",
+          "plan.copyGraph"
     ],
-    "notice": "Not server endpoints; CLI and Native Messaging removed; real website recovery not yet verified"
+    "notice": "MCP 使用已有网站权限。扩展部署和真实提交各自验收。"
   }
 }

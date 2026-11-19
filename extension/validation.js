@@ -6,10 +6,11 @@ const flowCheck=object({nodes:{type:'array',minItems:1,maxItems:100,items:object
 flowCheck.description='用户确认的目标图纸清单（已包含本次明确同意的修改），不上传网站；默认逐字、逐编号及逐直接箭头比较，未列出的辅助节点也会被拒绝。kind区分完成成果、原分类、事件和明确同意的辅助点。works是完整的一对一确认工作/连线/估时映射，不是允许AI自行拆分工期。缺少映射不能认证开工依赖或工期。';
 const node=object({id:nonempty,name:nonempty,content:string,ownerName:string},['id','name']);
 const edgeFields={fromNodeId:nonempty,toNodeId:nonempty,estimateDays:estimate,dashed:boolean,executor:string,actualCompleteDate:string};
-const planFields={title:nonempty,number:nonempty,owner:nonempty,startDate:string,deadlineDate:string,status:{const:'draft'},nodes:{type:'array',items:node},edges:{type:'array',items:object(edgeFields,['fromNodeId','toNodeId','estimateDays'])}};
+const priority={enum:["","P1","P2","P3"]};
+const planFields={title:nonempty,priority,number:nonempty,owner:nonempty,startDate:string,deadlineDate:string,status:{const:'draft'},nodes:{type:'array',items:node},edges:{type:'array',items:object(edgeFields,['fromNodeId','toNodeId','estimateDays'])}};
 export const parameterSchemas={
  'plan.create':object({...planFields,flowCheck},['title','number']),
- 'plan.update':object({set:object({title:nonempty,startDate:string,deadlineDate:string})},['set']),
+ 'plan.update':object({set:object({title:nonempty,priority,startDate:string,deadlineDate:string})},['set']),
  'plan.replace':object({...planFields,replace:{const:true}},['title','nodes','edges','replace']),
  'plan.copy':object({number:nonempty,owner:nonempty,title:nonempty},['number']),
  'plan.delete':object({permanent:boolean}),
@@ -41,6 +42,14 @@ export const parameterSchemas={
  'system.status':object({requestId:nonempty},['requestId']),
  'system.backup.get':object({backupId:nonempty},['backupId'])
 };
+const recordKind={enum:['project','task']}, basis={type:'object'};
+const projectPayload=object({kind:{enum:['customer','internal']},referenceNumber:nonempty,shortName:nonempty,owner:nonempty,category:string,status:{enum:['已启动','未启动','暂停','已完成']},startDate:string,targetDate:string,note:string},['kind','referenceNumber','shortName','owner']);
+const taskPayload=object({projectId:nonempty,type:nonempty,subject:nonempty,boardName:string,owner:nonempty,status:string,completedAt:string,targetDate:string,content:string,deliverable:string,note:string},['projectId','type','subject','owner']);
+const payload={oneOf:[projectPayload,taskPayload]};
+for(const op of ['records.meta','records.projects','records.tasks','records.requests'])parameterSchemas[op]=object({});
+parameterSchemas['records.submit']=object({kind:recordKind,action:{enum:['create','update']},targetId:nonempty,before:basis,payload,direct:boolean},['kind','action','payload']);
+parameterSchemas['records.review']=object({requestId:nonempty,before:basis,decision:{enum:['approve','reject']},payload,note:string},['requestId','before','decision','payload']);
+parameterSchemas['records.link']=object({kind:recordKind,targetId:nonempty,before:basis,planId:string},['kind','targetId','before','planId']);
 parameterSchemas['schedule.updateInputs']=parameterSchemas['plan.update'];
 parameterSchemas['progress.complete']=parameterSchemas['progress.update'];
 for(const op of ['graph.inspect','graph.simplify','plan.list','plan.get','plan.export','plan.archive','plan.restore','node.list','edge.list','progress.read','review.status','review.submit','review.approve','history.list','project.list','group.list','task.list','user.list','site.session','system.version','system.health','system.capabilities','site.inspect','site.capabilities','site.context','site.tabs','site.compatibility'])parameterSchemas[op]=object({});
@@ -74,6 +83,8 @@ export function checkSchema(schema,value,path='$'){
 export function validateStep(s){
  if(s.target?.version!==undefined&&s.target?.versionFrom!==undefined)invalid('版本依据只能选择version或versionFrom之一');
  if(parameterSchemas[s.op])checkSchema(parameterSchemas[s.op],s.params||{},s.op);
+ if(s.op==='records.submit'&&s.params.action==='update'&&(!s.params.targetId||!s.params.before))invalid('修改记录需要targetId和完整before');
+ if(s.op.startsWith('records.')&&s.target!==undefined)invalid('记录ID放在params中');
  if(s.target!==undefined)checkSchema(object({id:nonempty,number:nonempty,owner:nonempty,version:{type:'integer',minimum:0},versionFrom:nonempty}),s.target,'target');
  if(/^(node|edge|progress|review|graph)\./.test(s.op)||['task.merge','task.split','task.assign','task.updateStatus','plan.batch','plan.get','plan.update','plan.replace','plan.copy','plan.export','plan.archive','plan.delete','plan.restore','plan.restoreSnapshot','schedule.updateInputs','history.restore'].includes(s.op)){
   if(!s.target?.id&&!s.target?.number)invalid('target.id 或 target.number');

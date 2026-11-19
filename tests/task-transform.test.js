@@ -21,3 +21,27 @@ test('合并实际走API版本控制与写入回读，预览不写入',async()=>
  const s={id:'merge',op:'task.merge',target:{id:'TEST'},params:{nodeIds:['1','2','3'],name:'综合设计'}};
  await api.run(s,{requestId:'test',mode:'preview'});assert.equal(posts,0);const r=await api.run(s,{requestId:'test',mode:'execute'});assert.equal(r.serverVerified,true);assert.equal(posts,1);assert.equal(record.current.nodes.length,3);assert.equal(r.changes.durationComparison.beforeDays,r.changes.durationComparison.afterDays);
 });
+
+test('合并预览标出最终图中的直连及已有间接路径',async()=>{
+ const current=plan();
+ current.edges.pop();
+ const edge=(from,to)=>({...current.edges[0],from,to});
+ current.edges.push(edge('1','4'),edge('4','3'));
+ const before=structuredClone(current);
+ const api=new ApiAdapter(async(path,method)=>{
+  assert.notEqual(method,'POST');
+  if(path==='/api/session')return {actor:'OWNER',role:'user'};
+  return {id:'TEST',revision:1,current};
+ });
+ const merge={op:'task.merge',params:{nodeIds:['1','2','3'],name:'综合设计'}};
+ const preview=step=>api.run({id:'m',target:{id:'TEST',version:1},...step},{requestId:'merge-preview',mode:'preview'});
+ for(const command of [merge,{op:'plan.batch',params:{changes:[merge]}}]){
+  const {data}=await preview(command);
+  const findings=data.changes.redundantEdges;
+  assert.deepEqual(findings.map(e=>[e.from,e.to,e.alternatePath,e.safeToRemove]),[['1','3',['1','4','3'],false]]);
+  assert(data.after.edges.some(e=>e.from==='1'&&e.to==='3'&&!e.dashed));
+ }
+ const {data}=await preview({op:'plan.batch',params:{changes:[merge,{op:'edge.remove',params:{fromNodeId:'4',toNodeId:'3'}}]}});
+ assert.deepEqual(data.changes.redundantEdges,[]);
+ assert.deepEqual(current,before);
+});

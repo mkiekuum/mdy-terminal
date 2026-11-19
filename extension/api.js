@@ -1,8 +1,9 @@
+import {recordReads,recordWrites,runRecord} from './records.js';
 import {inspectFlow,enforceFlow} from './flow-check.js';
 import {verifySaved} from './recovery.js';
 import {fail,assert,clone,edge,nativePlan,validatePlan,validDate,equivalent,operationId} from './core.js';
 import {validateStep,batchOperations} from './validation.js';
-import {auditGraph,simplifyDummies,expectedDuration} from './graph.js';
+import {auditGraph,simplifyDummies,expectedDuration,transitiveEdges} from './graph.js';
 import {mergeTasks,splitTask} from './task-transform.js';
 import {editNodes,planDiff,requestedChanges} from './local-edits.js';
 export const reads={'plan.list':'/api/plans','project.list':'/api/project-groups','group.list':'/api/visibility-groups','task.list':'/api/work-tasks','site.session':'/api/session','user.list':'/api/assignees'};
@@ -10,12 +11,45 @@ export const writes=['plan.create','plan.update','plan.replace','plan.copy','pla
 writes.push('plan.restoreSnapshot','node.batchUpdate','node.renumber');
 writes.push('graph.simplify','plan.batch');
 writes.push('task.merge','task.split');
-writes.push('task.assign','task.updateStatus');
+writes.push('task.assign','task.updateStatus',...recordWrites);
+Object.assign(reads,recordReads);
+export async function canEditPlan(request, record, session) {
+ if (session.role === 'admin' || record.current.planOwner === session.actor) return true;
+ if (Array.isArray(record.collaborators) && record.collaborators.includes(session.actor)) return true;
+ const plans = await request('/api/plans');
+ return plans.some(plan => plan.id === record.id && plan.assistantEditable === true);
+}
+
+// The plan editor's date picker saves the edge through the ordinary plan change API.
+function setActualCompletion(plan, review, params) {
+ assert(plan.baseline && review?.status === 'approved', '请先确认固定稿并通过审核，再登记实际完成日期');
+ const edge = plan.edges.find(e => e.from === params.fromNodeId && e.to === params.toNodeId);
+ assert(edge, '连线不存在');
+ assert(validDate(params.actualCompleteDate), '实际完成日期无效');
+ edge.completedAt = params.actualCompleteDate;
+
+ const completed = plan.edges.filter(e => e.completedAt);
+ if (!completed.length) return;
+ assert(plan.start && validDate(plan.start), '请先选择有效的项目开工日期');
+ const predecessors = new Map();
+ for (const e of plan.edges) {
+  if (!predecessors.has(e.to)) predecessors.set(e.to, []);
+  predecessors.get(e.to).push(e);
+ }
+ for (const e of completed) {
+  const incoming = predecessors.get(e.from) || [];
+  assert(e.completedAt >= plan.start, '实际完成日期不能早于开工日期');
+  assert(incoming.every(p => p.completedAt), '连线 ' + e.from + '→' + e.to + ' 的前置工作尚未全部完成');
+  assert(incoming.every(p => p.completedAt <= e.completedAt), '连线 ' + e.from + '→' + e.to + ' 的完成日期早于前置工作完成日期');
+ }
+}
+
 export class ApiAdapter{
  constructor(request,options={}){this.request=request;this.options=options;}
  async resolve(t={}){if(t.id)return t.id;assert(typeof t.number==='string','target.id 或 number 必填');const items=(await this.request('/api/plans')).filter(p=>p.planNumber===t.number&&(!t.owner||p.planOwner===t.owner));if(items.length!==1)fail(items.length?'TARGET_AMBIGUOUS':'TARGET_NOT_FOUND');return items[0].id;}
  async run(s,e){
   const trace={};try{return await this.runInternal(s,e,trace);}catch(error){
+   if(recordWrites.includes(s.op))throw error;
    if(writes.includes(s.op)){
     const conflict=error.code==='VERSION_CONFLICT';
     error.outcome=conflict||['PERMISSION_DENIED','NOT_LOGGED_IN','INVALID_SCHEMA','INVALID_SITE_DATA'].includes(error.code)||!trace.submitted?'not_executed':'unconfirmed';
@@ -37,6 +71,10 @@ export class ApiAdapter{
  if(this.options.expectedActor&&session.actor!==this.options.expectedActor)fail('HISTORY_CONTEXT_MISMATCH','账号发生变化，停止执行');
  if(!session.actor)fail('NOT_LOGGED_IN');if(session.mustChangePassword)fail('PERMISSION_DENIED','请先在网站完成密码设置');
  if((op.startsWith('group.')||['review.approve','review.reject'].includes(op))&&session.role!=='admin')fail('PERMISSION_DENIED');
+ if (['plan.create','plan.copy'].includes(op) && p.owner && p.owner !== session.actor && session.role !== 'admin') {
+  fail('PERMISSION_DENIED','当前账号只可为自己创建计划；指定其他负责人需管理员权限。');
+ }
+ if(recordWrites.includes(op))return await runRecord(this.request,s,e);
  if(reads[op])return {data:await this.request(reads[op]),serverVerified:true};
  if(['task.assign','task.updateStatus'].includes(op)){
  const planId=await this.resolve(t),items=await this.request('/api/work-tasks');
@@ -53,7 +91,7 @@ export class ApiAdapter{
  if(!after||after[field]!==value)fail('SERVER_NOT_CONFIRMED');
  return {targetId:planId,beforeVersion:item.revision,afterVersion:after.revision,data:after,serverVerified:true};
  }
- let path,id,before,current,backupId,changes,flowCheck;
+ let path,id,before,current,backupId,changes,flowCheck,canManage;
  if(op==='plan.create'){id=crypto.randomUUID();current=nativePlan(p,session.actor);path='/api/plans';}
  else if(op.startsWith('project.')||op.startsWith('group.')){
  if(e.execution?.backup)fail('UNSUPPORTED_BY_SITE','项目/权限配置快照恢复未核实，未执行写入');
@@ -79,7 +117,12 @@ export class ApiAdapter{
  if(op==='node.list'||op==='edge.list')return {data:current[op==='node.list'?'nodes':'edges'],serverVerified:true};
  if(op==='progress.read'||op==='review.status')return {data:op==='review.status'?before.review:current.edges.map(x=>({from:x.from,to:x.to,completedAt:x.completedAt})),serverVerified:true};
  if(op==='history.list')fail('UNSUPPORTED_BY_SITE','当前前端已禁用逐次编辑历史读取；不能伪造历史');
- if(session.role!=='admin'&&current.planOwner!==session.actor)fail('PERMISSION_DENIED');
+ canManage = session.role === 'admin' || current.planOwner === session.actor;
+ const progressEdit = op === 'progress.update' || op === 'progress.complete';
+ if (!canManage) {
+  const contentEdit = batchOperations.includes(op) || op === 'plan.batch' || progressEdit;
+  if (!contentEdit || !await canEditPlan(this.request, before, session)) fail('PERMISSION_DENIED');
+ }
  trace.id=id;trace.before=clone(before);
  if(t.versionFrom!==undefined)fail('INVALID_SCHEMA','versionFrom 必须由执行器关联到已确认步骤');
  if(['node.batchUpdate','node.renumber'].includes(op))assert(Number.isInteger(t.version),'局部批量修改必须提供读取依据版本');
@@ -89,6 +132,7 @@ export class ApiAdapter{
  let virtual=clone(before);
  const local=new ApiAdapter(async(endpoint,method,body)=>{
   if(endpoint==='/api/session')return session;
+  if(endpoint==='/api/plans' && !method)return [{id,assistantEditable:true}]; // Outer batch already checked this plan.
   assert(endpoint===path||endpoint===path+'/import'||endpoint===path+'/change','批量操作不能访问其他目标或服务');
   if(method==='POST')virtual={...virtual,current:clone(body.current),revision:virtual.revision+1};
   return clone(virtual);
@@ -102,8 +146,8 @@ export class ApiAdapter{
  if(op==='graph.simplify')current=simplifyDummies(current).plan;
  if(op==='task.merge'||op==='task.split'){const transformed=(op==='task.merge'?mergeTasks:splitTask)(current,p);current=transformed.plan;changes={...transformed.changes,durationComparison:{beforeDays:expectedDuration(before.current),afterDays:expectedDuration(current),scope:'本地CPM期望工期，不含资源日历；网站日期以回读为准'}};}
  if(op==='plan.copy'){id=crypto.randomUUID();path='/api/plans';current={...current,planNumber:p.number,planOwner:p.owner||session.actor,title:p.title||current.title,baseline:null,edges:current.edges.map(x=>({...x,completedAt:''}))};assert(p.number,'副本需要新 number');}
- if(op==='plan.update'||op==='schedule.updateInputs'){const fields={title:'title',startDate:'start',deadlineDate:'deadline'};for(const [k,v]of Object.entries(p.set||{})){assert(fields[k]&&typeof v==='string','不允许修改字段 '+k);current[fields[k]]=v;}}
- if(op==='plan.replace'){assert(p.replace===true,'全量替换需要 replace:true');current=nativePlan({...p,number:current.planNumber,owner:current.planOwner},session.actor);}
+ if(op==='plan.update'||op==='schedule.updateInputs'){const fields={title:'title',priority:'priority',startDate:'start',deadlineDate:'deadline'};for(const [k,v]of Object.entries(p.set||{})){assert(fields[k]&&typeof v==='string','不允许修改字段 '+k);current[fields[k]]=v;}}
+ if(op==='plan.replace'){assert(p.replace===true,'全量替换需要 replace:true');current=nativePlan({priority:current.priority,...p,number:current.planNumber,owner:current.planOwner},session.actor);}
  if(op==='plan.restoreSnapshot'){
  const snapshot=await this.options.loadSnapshot?.(p.backupId);assert(snapshot&&snapshot.targetId===id,'快照不存在或不属于目标计划');
  if(snapshot.actor!==session.actor)fail('PERMISSION_DENIED','不能恢复另一登录身份保存的快照');
@@ -111,16 +155,20 @@ export class ApiAdapter{
  }
  if(['node.batchUpdate','node.renumber'].includes(op)){const transformed=editNodes(current,op,p);current=transformed.plan;changes=transformed.changes;}
  if(op.startsWith('node.')&&!['node.batchUpdate','node.renumber'].includes(op)){let index=current.nodes.findIndex(n=>n.id===p.id);if(op==='node.create'){current.nodes.push({id:p.id,name:p.name,content:p.content||'',owner:p.ownerName||''});}else if(op==='node.reorder'){assert(Array.isArray(p.ids)&&p.ids.length===current.nodes.length&&new Set(p.ids).size===p.ids.length&&p.ids.every(x=>current.nodes.some(n=>n.id===x)),'ids 必须是节点全集排列');current.nodes=p.ids.map(id=>current.nodes.find(n=>n.id===id));}else{assert(index>=0,'节点不存在');if(op==='node.remove'){assert(!current.edges.some(x=>x.from===p.id||x.to===p.id),'先删除关联连线');current.nodes.splice(index,1);if(current.positions)delete current.positions[p.id];}else{for(const [k,v]of Object.entries(p.set||{})){assert(['name','content','owner'].includes(k)&&typeof v==='string','节点字段无效');current.nodes[index][k]=v;}}}}
- if(op.startsWith('edge.')||op.startsWith('progress.')){let i=current.edges.findIndex(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);if(op==='edge.create')current.edges.push(edge(p));else{assert(i>=0,'连线不存在');if(op==='edge.remove')current.edges.splice(i,1);else if(op.startsWith('progress.')){assert(typeof p.actualCompleteDate==='string','需要 actualCompleteDate');current.edges[i].completedAt=p.actualCompleteDate;}else{const x=current.edges[i];if(p.estimateDays)x.upper=edge({...p}).upper;if(p.dashed!==undefined){assert(typeof p.dashed==='boolean','dashed 必须 boolean');x.dashed=p.dashed;}if(p.executor!==undefined)x.executor=p.executor;}}}
+ if(progressEdit) setActualCompletion(current, before.review, p);
+ if(op.startsWith('edge.')){let i=current.edges.findIndex(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);if(op==='edge.create')current.edges.push(edge(p));else{assert(i>=0,'连线不存在');if(op==='edge.remove')current.edges.splice(i,1);else{const x=current.edges[i];if(p.estimateDays)x.upper=edge({...p}).upper;if(p.dashed!==undefined){assert(typeof p.dashed==='boolean','dashed 必须 boolean');x.dashed=p.dashed;}if(p.executor!==undefined)x.executor=p.executor;}}}
  }
  if(op==='edge.update'){const changed=current.edges.find(x=>x.from===p.fromNodeId&&x.to===p.toNodeId);assert(!changed.dashed||changed.upper.split('-').every(x=>Number(x)===0),'虚任务必须是零耗时，请明确设置estimateDays三个0');}
+ const mergePreview = e.mode === 'preview' && (op === 'task.merge' ||
+  op === 'plan.batch' && p.changes.some(change => ['task.merge','node.remove'].includes(change.op)));
+ if (mergePreview) changes.redundantEdges = transitiveEdges(current.edges);
  validatePlan(current);if(!p.flowCheck&&['plan.create','plan.batch'].includes(op))flowCheck={format:'pass',drawing:'unverified',dependencies:'unverified',duration:'unverified',business:'not_independently_verified',canSubmit:true,notice:'未附确认图纸清单：原图一致性、工作开始约束与工期映射未核实；网站保存状态单独报告。'};if(p.flowCheck)flowCheck=e.mode==='preview'?inspectFlow(p.flowCheck,current):enforceFlow(p.flowCheck,current);assert(validDate(current.start)&&validDate(current.deadline)&&current.edges.every(x=>validDate(x.completedAt||'')),'日期无效');if(e.mode==='preview')return {data:{before:before?.current||null,after:['plan.delete','plan.archive'].includes(op)?null:current,revision:before?.revision,operation:op,rollback:'not_guaranteed',...(flowCheck?{flowCheck}:{}),changes:changes||planDiff(before?.current,current)},serverVerified:false};
  if(before&&(['plan.batch',...batchOperations].includes(op))&&equivalent(before.current,current))return {targetId:id,beforeVersion:before.revision,afterVersion:before.revision,data:before,serverVerified:true,noChange:true,...(flowCheck?{flowCheck}:{})};
  if(e.execution?.backup&&before){if(!this.options.saveSnapshot)fail('UNSUPPORTED_BY_SITE','快照存储不可用，未写入');backupId=e.requestId+':'+s.id;await this.options.saveSnapshot(backupId,{actor:session.actor,targetId:before.id||id,record:before,createdAt:new Date().toISOString()});}
  const operation=await operationId(e.requestId,s.id);let body={baseRevision:before?.revision,current,operation};
  if(path==='/api/plans')body={id,current,...(op==='plan.copy'?{copySourceId:before.id}:{})};
  else if(['plan.archive','plan.delete','plan.restore','review.submit','review.approve','review.reject','history.restore'].includes(op)){path+={'plan.archive':'/trash','plan.delete':'/trash','plan.restore':'/undelete','review.submit':'/submit','review.approve':'/review','review.reject':'/review','history.restore':'/restore'}[op];body={baseRevision:before.revision,operation};if(op.startsWith('review.')&&op!=='review.submit'){body.decision=op.split('.')[1];body.note=p.note||'';if(body.decision==='reject')assert(body.note.trim(),'退回需要 note');}if(op==='history.restore'){assert(Number.isInteger(p.targetRevision),'targetRevision 必须整数');body.targetRevision=p.targetRevision;}}
- else path+=['plan.batch','plan.replace','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
+ else path+=canManage&&['plan.batch','plan.replace','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
  await this.options.onPhase?.('submitting');trace.id=id;trace.submitted=true;const written=await this.request(path,'POST',body);
  if(op==='plan.archive'||op==='plan.delete'){const trash=await this.request('/api/trash');if(!trash.some(x=>x.id===id))fail('SERVER_NOT_CONFIRMED','垃圾桶回读未找到目标');return {targetId:id,serverVerified:true,...(backupId?{backupId}:{}),data:{recoverable:true}};}
  await this.options.onPhase?.('verifying');const after=await this.request('/api/plans/'+encodeURIComponent(id));if(after.revision!==written.revision)fail('SERVER_NOT_CONFIRMED','回读版本不一致');
