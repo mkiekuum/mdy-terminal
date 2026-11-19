@@ -30,7 +30,7 @@ async function tree(root,{pack=false}={}){
 }
 async function manifest(root){
  const p=JSON.parse(await fs.readFile(path.join(root,'manifest.json'),'utf8'));
- check(p.name==='序图终端'&&p.manifest_version===3&&p.background?.service_worker==='background.js','不是序图终端的扩展根目录');
+ check(['序图终端','MDY Terminal'].includes(p.name)&&p.manifest_version===3&&p.background?.service_worker==='background.js','不是 MDY Terminal 的扩展根目录');
  return p;
 }
 function privilege(m){

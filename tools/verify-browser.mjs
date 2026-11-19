@@ -20,7 +20,7 @@ try{
  const offline=await evaluate(`({title:document.title,table:document.querySelector('table')?.innerText,svg:document.querySelector('svg')?.getBoundingClientRect().width,dialog:document.querySelector('dialog')?.open,shadow:document.querySelector('#shadow')?.shadowRoot?.textContent,input:document.querySelector('#input')?.value,disabled:document.querySelector('button')?.disabled,inert:document.querySelector('form')?.inert,unsafe:document.body.dataset.unsafe||null,csp:document.querySelector('meta[http-equiv]')?.content})`);
  assert.equal(offline.title,'合成离线验收');assert(offline.table.includes('验收完成'));assert(offline.svg>0);assert(offline.dialog);assert(offline.shadow.includes('影子树内文'));assert.equal(offline.input,'仅property中的新值');assert(offline.disabled&&offline.inert);assert.equal(offline.unsafe,null);
  const writes=events.filter(e=>e.method==='Network.requestWillBeSent'&&e.params.request.method==='POST');assert.equal(writes.length,0);
- const boot=`import {site} from '/tests/v25-helpers.js';const web=site();web.add('P');const baseRequest=web.request;web.request=async(path,...args)=>{if(path==='/api/records/meta')return {users:['USER_A'],reviewer:false,types:['硬件'],statuses:['等待']};if(path==='/api/records/projects')return [{id:'QA-PROJECT',shortName:'隔离项目',owner:'USER_A',status:'已启动'}];if(path==='/api/records/tasks')return [{id:'QA-TASK',title:'硬件-QA',owner:'USER_A',status:'等待'}];if(path==='/api/records/requests')return [{id:'QA-REQUEST',payload:{shortName:'隔离申请'},status:'pending'}];return baseRequest(path,...args);};window.qaSite=web;Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw Error('test manual-copy fallback')}}});let listeners=[];const local={};window.chrome={permissions:{request:async()=>true},runtime:{id:'a'.repeat(32),getURL:f=>location.origin+'/'+f,onInstalled:{addListener:f=>{window.qaInstalled=f}},onMessage:{addListener:f=>listeners.push(f)},sendMessage:m=>new Promise(resolve=>listeners.forEach(listener=>listener(m,{id:'a'.repeat(32),url:location.origin+'/ui.html'},resolve)))},storage:{local:{get:async k=>({[k]:local[k]}),set:async obj=>Object.assign(local,obj),remove:async k=>{delete local[k]}}},tabs:{get:async id=>({id,url:'https://plan.fpgabbs.cn/'}),query:async()=>[{id:123,title:'合成验收网页',url:'https://plan.fpgabbs.cn/',active:true}],sendMessage:async(id,m)=>{if(m.kind==='inspect')return {origin:'https://plan.fpgabbs.cn',anchors:{},activeTarget:{id:'P'}};try{return {ok:true,data:await web.request(m.path,m.method,m.body)};}catch(e){return {ok:false,code:e.code,message:e.message};}}},scripting:{executeScript:async options=>[{result:{available:false}}]},userScripts:{getScripts:async()=>[]}};window.fetch=async()=>({status:200,url:'https://github.com/mkiekuum/xutu-control-terminal/releases/tag/v99.0.0',body:null});await import('/extension/background.js');await import('/extension/ui.js');window.qaReady=true;`;
+ const boot=`import {site} from '/tests/v25-helpers.js';const web=site();web.add('P');const baseRequest=web.request;web.request=async(path,...args)=>{if(path==='/api/records/meta')return {users:['USER_A'],reviewer:false,types:['硬件'],statuses:['等待']};if(path==='/api/records/projects')return [{id:'QA-PROJECT',shortName:'隔离项目',owner:'USER_A',status:'已启动'}];if(path==='/api/records/tasks')return [{id:'QA-TASK',title:'硬件-QA',owner:'USER_A',status:'等待'}];if(path==='/api/records/requests')return [{id:'QA-REQUEST',payload:{shortName:'隔离申请'},status:'pending'}];return baseRequest(path,...args);};window.qaSite=web;Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw Error('test manual-copy fallback')}}});let listeners=[];const local={};window.chrome={permissions:{request:async()=>true},runtime:{id:'a'.repeat(32),getURL:f=>location.origin+'/'+f,onInstalled:{addListener:f=>{window.qaInstalled=f}},onMessage:{addListener:f=>listeners.push(f)},sendMessage:m=>new Promise(resolve=>listeners.forEach(listener=>listener(m,{id:'a'.repeat(32),url:location.origin+'/ui.html'},resolve)))},storage:{local:{get:async k=>Object.fromEntries((Array.isArray(k)?k:typeof k==='string'?[k]:Object.keys(local)).map(key=>[key,local[key]])),set:async obj=>Object.assign(local,obj),remove:async k=>{delete local[k]}}},tabs:{get:async id=>({id,url:'https://plan.fpgabbs.cn/'}),query:async()=>[{id:123,title:'合成验收网页',url:'https://plan.fpgabbs.cn/',active:true}],sendMessage:async(id,m)=>{if(m.kind==='inspect')return {origin:'https://plan.fpgabbs.cn',anchors:{},activeTarget:{id:'P'}};try{return {ok:true,data:await web.request(m.path,m.method,m.body)};}catch(e){return {ok:false,code:e.code,message:e.message};}}},scripting:{executeScript:async options=>[{result:{available:false}}]},userScripts:{getScripts:async()=>[]}};window.fetch=async()=>({status:200,url:'https://github.com/mkiekuum/mdy-terminal/releases/tag/v99.0.0',body:null});await import('/extension/background.js');await import('/extension/ui.js');window.qaReady=true;`;
  server=http.createServer(async(req,res)=>{try{const name=new URL(req.url,'http://localhost').pathname;if(name==='/boot.js'){res.setHeader('Content-Type','text/javascript');res.end(boot);return;}if(name==='/ui.html'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end((await fs.readFile(path.join(root,'extension/ui.html'),'utf8')).replace('href="ui.css"','href="/extension/ui.css"').replace('src="ui.js"','src="/boot.js"'));return;}if(!/^\/(extension|tests)\/[\w.-]+\.(js|css)$/.test(name)){res.writeHead(404).end();return;}res.setHeader('Content-Type',name.endsWith('.css')?'text/css':'text/javascript');res.end(await fs.readFile(path.join(root,name.slice(1))));}catch{res.writeHead(500).end();}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));await send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/ui.html'});
  for(let i=0;i<50;i++){if(await evaluate('window.qaReady===true'))break;await sleep(100);}await sleep(150);
@@ -64,47 +64,28 @@ try{
   return !(await chrome.storage.local.get('releaseCheck')).releaseCheck;
  })()`);
  assert(upgrade,'updating must preserve user settings');
- const appearanceUI=await evaluate(`(async()=>{
-  const {setupAppearance}=await import('/extension/appearance.js');
-  await setupAppearance(document,chrome.storage.local);
-  if(document.documentElement.dataset.theme!=='dark'||document.documentElement.dataset.density!=='compact')return false;
-  document.getElementById('themeChoice').value='light';await document.getElementById('themeChoice').onchange();
-  document.getElementById('densityChoice').value='comfortable';await document.getElementById('densityChoice').onchange();
-  const saved=(await chrome.storage.local.get('terminalAppearance')).terminalAppearance;
-  return saved.theme==='light'&&saved.density==='comfortable';
- })()`);
- assert(appearanceUI,'appearance settings persist after upgrade');
  const hiddenSidebar=await evaluate(`(async()=>{
   const {installSidebarUI}=await import('/extension/sidebar-ui.js');
-  const host=document.createElement('aside');host.id='fileSidebar';host.innerHTML='<button id="fileSidebarToggle">计划</button>';document.body.append(host);
-  const ui=installSidebarUI(document,{hidden:true});
-  const hidden=getComputedStyle(host).display==='none';
-  document.getElementById('xutu-sidebar-restore').click();
-  const shown=getComputedStyle(host).display!=='none';
-  document.getElementById('xutu-sidebar-hide').click();
-  const hiddenAgain=getComputedStyle(host).display==='none';
-  ui.destroy();host.remove();return hidden&&shown&&hiddenAgain;
- })()`);
- assert(hiddenSidebar,'sidebar can be completely hidden and restored');
- const sidebarModes=await evaluate(`(async()=>{
-  const select=document.getElementById('sidebarMode');
-  for(const mode of ['native','overlay','hidden']){
-   select.value=mode;await select.onchange();
-   const hidden=(await chrome.storage.local.get('hideSidebar')).hideSidebar;
-   const overlay=(await chrome.storage.local.get('optimizeSidebar')).optimizeSidebar;
-   if(hidden!==(mode==='hidden')||overlay!==(mode!=='native'))return false;
-  }
-  return true;
- })()`);
- assert(sidebarModes,'sidebar selector preserves compatible settings');
+  const host=document.createElement('aside');host.id='fileSidebar';document.body.append(host);
+  const nav=document.createElement('nav');nav.textContent='MDY navigation';document.body.append(nav);
+  const ui=installSidebarUI(document);
+  const hidden=getComputedStyle(host).display==='none'&&getComputedStyle(nav).display!=='none';
+  ui.destroy();const shown=getComputedStyle(host).display!=='none';host.remove();nav.remove();return hidden&&shown;
+ })()`);assert(hiddenSidebar,'only the legacy sidebar is hidden and restored');
+ const sidebarSetting=await evaluate(`(async()=>{
+  const control=document.getElementById('hideSidebar');
+  for(const value of [true,false]){control.checked=value;await control.onchange();if((await chrome.storage.local.get('hideSidebar')).hideSidebar!==value)return false;}
+  return !document.querySelector('#workDomain,#themeChoice,#densityChoice,#copyUpdate,#updateStatus,#sidebarMode');
+ })()`);assert(sidebarSetting,'only the requested sidebar checkbox remains');
  await evaluate(`document.getElementById('moreToggle').onclick()`);
  await send('Emulation.setDeviceMetricsOverride',{width:460,height:1250,deviceScaleFactor:1,mobile:false});
  for(const theme of ['light','dark']){
-  await evaluate(`(async()=>{document.getElementById('themeChoice').value='${theme}';await document.getElementById('themeChoice').onchange();})()`);
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
   const shot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
   await fs.writeFile(path.join(out,'settings-'+theme+'.png'),Buffer.from(shot.data,'base64'));
  }
- await evaluate(`(async()=>{document.getElementById('moreToggle').onclick();document.getElementById('themeChoice').value='light';await document.getElementById('themeChoice').onchange();})()`);
+ await evaluate(`document.getElementById('moreToggle').onclick()`);
+ await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'light'}]});
  await send('Emulation.setDeviceMetricsOverride',{width:460,height:800,deviceScaleFactor:1,mobile:false});
  const initialShot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'initial-ui.png'),Buffer.from(initialShot.data,'base64'));
  const ui=await evaluate(`({ready:window.qaReady,compactHelp:!document.querySelector('#usageHelp'),width:document.documentElement.scrollWidth,cli:!!document.querySelector('#testCli'),request:!!document.querySelector('#request')})`);assert(ui.ready&&ui.compactHelp&&ui.request&&!ui.cli);assert(ui.width<=460);
@@ -166,19 +147,6 @@ try{
   return preview&&review&&pending&&qaSite.calls.filter(c=>c.method==='POST').length===before;
  })()`);
  assert.equal(mergeUI,true,'merge preview displays direct and indirect paths before saving');
- const recordsUI=await evaluate(`(async()=>{
-  const domain=document.getElementById('workDomain');
-  for(const value of ['projects','tasks','requests']){
-   domain.value=value;domain.onchange();await document.getElementById('refreshRecords').onclick();
-   if(document.getElementById('recordChoice').options.length!==2)throw Error('Records selector failed');
-   document.getElementById('recordChoice').selectedIndex=1;
-   await document.getElementById('copyPrompt').onclick();
-   const copied=document.getElementById('manualCopyText').value;
-   if(!copied.includes('records.submit')||!copied.includes('QA-'))throw Error('Records prompt missing context');
-  }
-  domain.value='plan';domain.onchange();return document.getElementById('recordsPanel').hidden;
- })()`);
- assert.equal(recordsUI,true);
  const flowUI=await evaluate(`(async()=>{
   const $=id=>document.getElementById(id),posts=()=>qaSite.calls.filter(c=>c.method==='POST').length,revision=qaSite.records.get('P').revision,original=qaSite.records.get('P').current.title;
   const preview={protocol:'xutu.command/v1',requestId:'synthetic-explicit-preview',mode:'preview',steps:[{id:'u',op:'plan.update',target:{id:'P',version:revision},params:{set:{title:'Must not save'}}}]};
@@ -213,10 +181,7 @@ try{
   return {undoReview,undone,redone,historyCopy,deleteReview,unknown,diagnosed,helpCopy};
  })()`);
  for(const [check,value] of Object.entries(recoveryUI))assert.equal(value,true,check);
- let nativeSidebarCode='';if(process.argv[4]){const source=await fs.readFile(process.argv[4],'utf8');const begin=source.indexOf(" const fileSidebar=document.getElementById('fileSidebar')"),end=source.indexOf(" const sidebar=document.getElementById('historySidebar')",begin);if(begin<0||end<0)throw Error('Native sidebar source anchors changed');nativeSidebarCode=source.slice(begin,end);}
- const sidebarUI=await evaluate(`(async()=>{const host=document.createElement('section');host.innerHTML='<aside id="fileSidebar" class="is-collapsed"><button id="fileSidebarToggle">计划文件</button><button id="fileSidebarPin">固定</button><div>合成列表</div></aside><div id="sidebarOutside">外部空白</div>';document.body.append(host);${nativeSidebarCode?('(()=>{'+nativeSidebarCode+'})();'):''}const {installSidebarUI}=await import('/extension/sidebar-ui.js');const p=document.getElementById('fileSidebar'),t=document.getElementById('fileSidebarToggle'),ui=installSidebarUI();p.dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse'}));p.dispatchEvent(new PointerEvent('pointermove',{pointerType:'mouse',bubbles:true}));const noHover=p.classList.contains('is-collapsed');const close=[];for(let i=0;i<4;i++){t.click();const opened=!p.classList.contains('is-collapsed');if(i===0)t.click();if(i===1)document.getElementById('sidebarOutside').click();if(i===2)document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));if(i===3)document.getElementById('xutu-sidebar-close').click();close.push(opened&&p.classList.contains('is-collapsed'));}ui.destroy();const restored=!document.documentElement.classList.contains('xutu-sidebar-optimized');host.remove();return {noHover,close,restored};})()`);
- assert(sidebarUI.noHover&&sidebarUI.close.every(Boolean)&&sidebarUI.restored);
  // Synthetic UI evidence, never a screenshot of the user's website.
  const screenshot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await fs.writeFile(path.join(out,'synthetic-ui.png'),Buffer.from(screenshot.data,'base64'));
- const report={browser:version.product,isolatedProfile:true,siteLogin:false,offlineEmulation:true,rawBytes:raw.bytes,offlineBytes:meta.bytes,missingResources:meta.missingResources,offline,networkWrites:writes.length,ui,questions,promptScope,mcpCopy,execution,flowUI,recoveryUI,sidebarUI,nativeSidebarSource:!!nativeSidebarCode,loginUI,scope:'合成数据：真实Chrome离线渲染及网页模式UI；未安装扩展，未登录真实网站，未验证生产写入或系统剪贴板'};await fs.writeFile(path.join(out,'browser-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));await call('Browser.close');
+ const report={browser:version.product,isolatedProfile:true,siteLogin:false,offlineEmulation:true,rawBytes:raw.bytes,offlineBytes:meta.bytes,missingResources:meta.missingResources,offline,networkWrites:writes.length,ui,questions,promptScope,mcpCopy,execution,flowUI,recoveryUI,hiddenSidebar,sidebarSetting,loginUI,scope:'合成数据：真实Chrome离线渲染及网页模式UI；未安装扩展，未登录真实网站，未验证生产写入或系统剪贴板'};await fs.writeFile(path.join(out,'browser-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));await call('Browser.close');
 }finally{if(ws?.readyState===1)ws.close();for(const p of pending.values())clearTimeout(p.timer);if(server)await new Promise(resolve=>server.close(resolve));if(child.exitCode===null)child.kill();}

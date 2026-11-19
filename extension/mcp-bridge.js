@@ -17,7 +17,7 @@ export function startMcpBridge({run,identity,storage,resolveTarget,browserStatus
    if (job.kind === 'status' || job.kind === 'login') {
     result = await browserStatus(target, job.kind === 'login');
    } else {
-    if (!target.tab) throw Error(target.selection === 'ambiguous' ? '请切到目标序图页，再重新读取上下文。' : '请打开序图网页。');
+    if (!target.tab) throw Error(target.selection === 'ambiguous' ? '请切到目标MDY 计划站页，再重新读取上下文。' : '请打开 MDY网页。');
     activeConfig = {...c, tabId: target.tab.id};
     result = await gate.handle(job);
    }

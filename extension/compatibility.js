@@ -15,7 +15,7 @@ export async function collectCompatibility({inspect,session,plans,probe,userScri
  const jobs=await Promise.allSettled([inspect,session,plans,probe,userScripts].map(run=>Promise.resolve().then(run)));
  const [page,auth,list,engine,scripts]=jobs.map(r=>r.status==='fulfilled'?r.value:null),checks=[];
  const add=(id,status,message)=>checks.push({id,status,message});
- add('page',page?.origin==='https://plan.fpgabbs.cn'?'pass':'fail',page?.origin==='https://plan.fpgabbs.cn'?'目标网页与通信桥已连接。':'未能连接受支持的序图网页。');
+ add('page',page?.origin==='https://plan.fpgabbs.cn'?'pass':'fail',page?.origin==='https://plan.fpgabbs.cn'?'目标网页与通信桥已连接。':'未能连接受支持的MDY 计划站网页。');
  const identity=['planOwner','planNumber','title'];
  const missing=identity.filter(id=>page?.anchors?.[id]!==1);
  add('target',page?(missing.length?'warning':'pass'):'unknown',page?(missing.length?'当前计划定位字段变化或未加载：'+missing.join('、'):'当前计划定位字段均唯一。'):'未检查当前计划定位字段。');
@@ -35,7 +35,7 @@ export async function collectCompatibility({inspect,session,plans,probe,userScri
 }
 
 export function formatCompatibility(report){
- if(!report)return '序图兼容性状态\n尚未检查。请打开序图网站后重新检查。';
+ if(!report)return 'MDY 计划站兼容性状态\n尚未检查。请打开 MDY网站后重新检查。';
  const labels={ok:'基础只读检查通过',limited:'部分检查未通过或未确认',unavailable:'网页连接不可用',not_checked:'尚未检查'},states={pass:'通过',warning:'待核对',unknown:'未确认',optional:'可选'};
- return ['序图兼容性状态','插件版本：'+(report.extensionVersion||VERSION),'检查时间：'+(report.checkedAt||'未检查'),'结果：'+(labels[report.status]||'未确认'),...(report.checks||[]).map(c=>'['+(states[c.status]||'异常')+'] '+c.message),report.scope||'',...(report.limitations||[]),report.privacy||''].filter(Boolean).join('\n');
+ return ['MDY 计划站兼容性状态','插件版本：'+(report.extensionVersion||VERSION),'检查时间：'+(report.checkedAt||'未检查'),'结果：'+(labels[report.status]||'未确认'),...(report.checks||[]).map(c=>'['+(states[c.status]||'异常')+'] '+c.message),report.scope||'',...(report.limitations||[]),report.privacy||''].filter(Boolean).join('\n');
 }

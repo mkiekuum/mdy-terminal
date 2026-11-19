@@ -1,5 +1,3 @@
-import {setupAppearance} from './appearance.js';
-import {setupRecordsPanel} from './ui-records.js';
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
 import {createConnection} from './mcp-connection.js';
@@ -11,13 +9,11 @@ import {compactPlanEdits} from './batch-input.js';
 import {prepareCommand,buildPrompt,summarize,commandSummary,stableRequestId} from './terminal.js';
 import {formatCompatibility} from './compatibility.js';
 import {VERSION} from './core.js';
-import {buildAgentUpdatePrompt} from './updates.js';
 import {setupHistory,setupExport} from './ui-workflows.js';
 const $=id=>document.getElementById(id);let openingTabId,selectedPlanTab,lastRequestId='',compatibilityReport=null,compatibilityGeneration=0,refreshGeneration=0;
 if (chrome.extension?.getViews({type: 'popup'}).includes(window)) {
  document.documentElement.classList.add('popup');
 }
-setupAppearance(document,chrome.storage.local).catch(()=>message('外观设置读取失败',true));
 let loginGeneration = 0;
 setupToolPanels(document, panel => {
  closeLogin();
@@ -31,26 +27,23 @@ chrome.runtime.onMessage.addListener((m,sender)=>{if(sender.id===chrome.runtime.
 const tabId=()=>selectedPlanTab||undefined;
 const message=(text,error=false)=>{$('message').textContent=text;$('message').dataset.error=String(error);};
 const send=async input=>{const result=await chrome.runtime.sendMessage(input);if(!result)throw Error('插件未响应，请重新加载插件。');return result;};
-const updatePromise=(async()=>{
+void (async()=>{
  try{const result=await send({kind:'updates'});if(!['available','current','ahead','unknown'].includes(result.status))throw Error('UPDATE_UNAVAILABLE');updateReport=result;}
  catch{updateReport={status:'unknown',currentVersion:VERSION,reason:'请确认已重新加载插件，并检查网络后重新打开。'};}
- $('updateStatus').textContent='v'+VERSION+' · '+({available:'新版 v'+updateReport.latestVersion,current:'已是最新版',ahead:'高于当前正式版',unknown:'暂无法检查更新'}[updateReport.status]);
- if(updateReport.status==='available'&&updateReport.releaseUrl?.startsWith('https://github.com/mkiekuum/xutu-control-terminal/releases/')){$('updateAdvice').textContent='建议更新至 v'+updateReport.latestVersion;$('updateBanner').hidden=false;$('installUpdate').href=updateReport.releaseUrl;$('installUpdate').hidden=false;}
+ if(updateReport.status==='available'&&updateReport.releaseUrl?.startsWith('https://github.com/mkiekuum/mdy-terminal/releases/')){$('updateAdvice').textContent='建议更新至 v'+updateReport.latestVersion;$('updateBanner').hidden=false;$('installUpdate').href=updateReport.releaseUrl;$('installUpdate').hidden=false;}
  $('moreLabel').textContent='设置';
 })();
 const envelope=(op,target)=>({protocol:'xutu.command/v1',requestId:crypto.randomUUID(),...(tabId()?{tabId:tabId()}:{}),steps:[{id:'read',op,...(target?{target}:{})}]});
 function data(result){if(result.status!=='success')throw Error(summarize(result));return result.steps[0].data;}
 async function busy(id,action){const button=$(id);button.disabled=true;try{await action();}catch(e){message(e.message,true);}finally{button.disabled=button.dataset.locked==='true';}}
 async function clipboard(text){try{await navigator.clipboard.writeText(text);$('manualCopy').hidden=true;$('manualCopyText').value='';}catch{$('manualCopy').hidden=false;$('manualCopy').open=true;$('manualCopyText').value=text;throw Error('未能写入剪贴板，请在下方“手动复制内容”中复制完整文本。');}}
-$('copyUpdate').onclick=()=>busy('copyUpdate',async()=>{await updatePromise;await clipboard(buildAgentUpdatePrompt(updateReport,{currentVersion:VERSION,extensionId:chrome.runtime.id}));message('更新指令已复制，交给能操作本机的 AI Agent 执行；尚未更新软件。');});
 function showCompatibility(report){$('compatibilityDetails').hidden=!report;compatibilityReport=report;$('compatibilityStatus').textContent=report?.status==='ok'?'基础只读检查通过；业务写入仍由服务器判定。':report?.status==='limited'?'部分检查待核对，展开下方报告查看。':'尚未完成网页兼容性检查。';$('compatibilityOutput').textContent=formatCompatibility(report);}
 async function checkCompatibility(){const generation=++compatibilityGeneration,selected=tabId();let report;
  try{report=selected?data(await send({kind:'run',command:envelope('site.compatibility')})):null;}
- catch{report={status:'unavailable',checkedAt:new Date().toISOString(),checks:[{id:'connection',status:'fail',message:'无法读取兼容性报告，请确认插件已重新加载且序图网页已打开。'}],scope:'未执行业务写入。'};}
+ catch{report={status:'unavailable',checkedAt:new Date().toISOString(),checks:[{id:'connection',status:'fail',message:'无法读取兼容性报告，请确认插件已重新加载且MDY 计划站网页已打开。'}],scope:'未执行业务写入。'};}
  if(generation===compatibilityGeneration&&selected===tabId())showCompatibility(report);return report;
 }
-const recordContext=setupRecordsPanel(document,async op=>data(await send({kind:'run',command:envelope(op)})));
-async function readContext(projectGroups='selected'){if($('workDomain').value!=='plan')return recordContext();if(!tabId())return {complete:false,plan:null,warnings:['未打开序图网页，先根据需求提问，不猜测已有计划。']};try{const command=envelope('site.context');command.steps[0].params={projectGroups};const context=data(await send({kind:'run',command}));if(context.compatibility)showCompatibility(context.compatibility);return context;}catch{return {complete:false,plan:null,warnings:['本次计划上下文读取失败；请先核对登录、目标网页及兼容性，不得假设当前计划内容。'],compatibility:compatibilityReport};}}
+async function readContext(projectGroups='selected'){if(!tabId())return {complete:false,plan:null,warnings:['未打开 MDY网页，先根据需求提问，不猜测已有计划。']};try{const command=envelope('site.context');command.steps[0].params={projectGroups};const context=data(await send({kind:'run',command}));if(context.compatibility)showCompatibility(context.compatibility);return context;}catch{return {complete:false,plan:null,warnings:['本次计划上下文读取失败；请先核对登录、目标网页及兼容性，不得假设当前计划内容。'],compatibility:compatibilityReport};}}
 $('checkCompatibility').onclick=()=>busy('checkCompatibility',checkCompatibility);
 $('copyCompatibility').onclick=()=>busy('copyCompatibility',async()=>{const report=await checkCompatibility();await clipboard(formatCompatibility(report));message('兼容状态已复制，可交给维护者；不含计划内容。');});
 async function refresh(){
@@ -59,7 +52,7 @@ async function refresh(){
  if(generation!==refreshGeneration)return;
  selectedPlanTab=Number(found.tabId)||undefined;
  openingTabId=selectedPlanTab;
- if(!tabId()){$('connection').textContent='请切到序图页';document.querySelector('.connection-strip').dataset.state='error';++compatibilityGeneration;showCompatibility(null);return;}
+ if(!tabId()){$('connection').textContent='请切到MDY 计划站页';document.querySelector('.connection-strip').dataset.state='error';++compatibilityGeneration;showCompatibility(null);return;}
  const session=await send({kind:'run',command:envelope('site.session')});if(generation!==refreshGeneration)return;$('connection').textContent=session.status==='success'?'已连接当前页':'请检查网站登录';document.querySelector('.connection-strip').dataset.state=session.status==='success'?'connected':'error';await checkCompatibility();
 }
 $('openSite').onclick=()=>busy('openSite',async()=>{await send({kind:'openSite'});});
@@ -113,11 +106,11 @@ $('copyMcpPrompt').onclick = () => busy('copyMcpPrompt', async () => {
  const context = await readContext(projectGroupMode(text));
  if (selected !== tabId() || text !== $('request').value) throw Error('需求或目标变化，请重新复制');
  await clipboard(mcpPrompt(buildPrompt(text, context, selected), connection));
- message(selected ? '已复制 MCP 提示词。' : '已复制提示词。打开序图页后可配对 MCP。');
+ message(selected ? '已复制 MCP 提示词。' : '已复制提示词。打开 MDY页后可配对 MCP。');
 });
 async function refreshMcpSettings() {
- const {mcpConnection, mcpBridgeStatus, optimizeSidebar, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'optimizeSidebar', 'hideSidebar']);
- $('sidebarMode').value = hideSidebar ? 'hidden' : optimizeSidebar ? 'overlay' : 'native';
+ const {mcpConnection, mcpBridgeStatus, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'hideSidebar']);
+ $('hideSidebar').checked = !!hideSidebar;
  const state = mcpBridgeStatus?.state;
  let label = 'MCP 未连接';
  if (mcpConnection?.enabled) {
@@ -129,18 +122,17 @@ async function refreshMcpSettings() {
  $('disconnectMcp').hidden = !mcpConnection;
 }
 refreshMcpSettings();
-$('sidebarMode').onchange=async()=>{
- const mode=$('sidebarMode').value;
+$('hideSidebar').onchange=async()=>{
  try{
-  await chrome.storage.local.set({hideSidebar:mode==='hidden',optimizeSidebar:mode!=='native'});
+  await chrome.storage.local.set({hideSidebar:$('hideSidebar').checked});
   for(const tab of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidebar-loader.js']});
-  message('侧栏设置已保存。');
+  message('旧计划栏设置已保存。');
  }catch(error){message(error.message,true);}
 };
 $('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews']);$('mcpState').textContent='已断开，清除本机连接密钥。';});
 
 chrome.storage.onChanged?.addListener((changes, area) => {
- if (area === 'local' && (changes.mcpConnection || changes.mcpBridgeStatus || changes.optimizeSidebar || changes.hideSidebar)) refreshMcpSettings();
+ if (area === 'local' && (changes.mcpConnection || changes.mcpBridgeStatus || changes.hideSidebar)) refreshMcpSettings();
 });
 
 function displayLogin(info) {
@@ -173,5 +165,5 @@ $('editLogin').onclick = () => busy('editLogin', async () => {
  if ($('loginSettings').hidden) await loadLoginStatus(true);
  else closeLogin();
 });
-$('rememberLogin').onclick=()=>busy('rememberLogin',async()=>{const account=$('loginAccount').value,password=$('loginPassword').value;$('loginPassword').value='';const result=await send({kind:'loginSave',tabId:tabId(),account,password});if(result.status==='failed')throw Error(result.message);displayLogin(result);closeLogin();message('序图自动登录已启用。');});
+$('rememberLogin').onclick=()=>busy('rememberLogin',async()=>{const account=$('loginAccount').value,password=$('loginPassword').value;$('loginPassword').value='';const result=await send({kind:'loginSave',tabId:tabId(),account,password});if(result.status==='failed')throw Error(result.message);displayLogin(result);closeLogin();message('MDY 自动登录已启用。');});
 $('forgetLogin').onclick=()=>busy('forgetLogin',async()=>{const result=await send({kind:'loginClear'});if(result.status==='failed')throw Error(result.message);displayLogin(result);});

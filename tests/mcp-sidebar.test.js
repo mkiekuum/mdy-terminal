@@ -1,11 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import {installSidebarUI} from '../extension/sidebar-ui.js';import {McpGate,readOnly,mcpPrompt} from '../extension/mcp-policy.js';import {createRelay} from '../mcp/relay.mjs';import {relayUrl,startMcpBridge} from '../extension/mcp-bridge.js';
 const cmd=(op='plan.get')=>({protocol:'xutu.command/v1',requestId:crypto.randomUUID(),steps:[{id:'a',op,target:{id:'P',version:1},params:op==='plan.update'?{set:{title:'New'}}:{}}]});
-test('左侧栏禁悬停、点击展开、四种关闭和卸载恢复，不触碰业务节点',async()=>{
- const dom=new JSDOM('<div id="fileSidebar" class="is-collapsed"><button id="fileSidebarToggle">计划</button><button id="fileSidebarPin">固定</button><div>业务列表</div></div><main id="outside">图</main>');const d=dom.window.document,p=d.getElementById('fileSidebar'),t=d.getElementById('fileSidebarToggle');let hovered=0;p.addEventListener('pointerenter',()=>hovered++);const ui=installSidebarUI(d);
- p.dispatchEvent(new dom.window.Event('pointerenter'));assert.equal(hovered,0);assert(p.classList.contains('is-collapsed'));
- for(const close of [()=>t.click(),()=>d.getElementById('outside').click(),()=>d.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'})),()=>d.getElementById('xutu-sidebar-close').click()]){t.click();assert(!p.classList.contains('is-collapsed'));close();assert(p.classList.contains('is-collapsed'));}
- t.click();p.classList.add('is-collapsed');await new Promise(r=>setTimeout(r,0));assert(!p.classList.contains('is-collapsed'));ui.destroy();assert.equal(t.textContent,'计划');assert.equal(p.className,'is-collapsed');p.dispatchEvent(new dom.window.Event('pointerenter'));assert.equal(hovered,1);assert.equal(d.querySelector('main').textContent,'图');dom.window.close();
-});
 test('网站锚点变化不乱改其他侧栏',()=>{const d=new JSDOM('<aside>Other</aside>');assert.equal(installSidebarUI(d.window.document).available,false);assert.equal(d.window.document.querySelector('aside').textContent,'Other');d.window.close();});
 test('MCP 只读拒绝写，执行必须绑定成功预览及明确同意，执行后不重复',async()=>{
  const calls=[],gate=new McpGate(async c=>{calls.push(c);return {status:'success',steps:[{data:{after:{title:'New'}}}]};},async()=>'account:tab');

@@ -32,7 +32,7 @@ async function inspectLogin(tab) {
   throw error;
  }
 }
-async function sessionFor(tab){const session=await request(tab,'/api/session');if(!session.actor||session.mustChangePassword)fail('NOT_LOGGED_IN','请先在序图网站登录并完成账号设置。');return session;}
+async function sessionFor(tab){const session=await request(tab,'/api/session');if(!session.actor||session.mustChangePassword)fail('NOT_LOGGED_IN','请先在MDY 计划站网站登录并完成账号设置。');return session;}
 async function exportCommand(tab,op,p){
  const session=await sessionFor(tab);let func,args;
  if(op==='site.html.begin'){func=capturePage;args=[p.kind];}
@@ -54,7 +54,7 @@ async function currentPlanTarget(){
 async function currentPlanTab() {
  return (await currentPlanTarget()).tab;
 }
-async function tabFor(e){if(e.tabId){const t=await chrome.tabs.get(e.tabId);if(new URL(t.url).origin!=='https://plan.fpgabbs.cn')fail('PERMISSION_DENIED');return t;}const tabs=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});if(tabs.length!==1)fail('TARGET_AMBIGUOUS','请打开唯一序图标签页或指定 tabId');return tabs[0];}
+async function tabFor(e){if(e.tabId){const t=await chrome.tabs.get(e.tabId);if(new URL(t.url).origin!=='https://plan.fpgabbs.cn')fail('PERMISSION_DENIED');return t;}const tabs=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});if(tabs.length!==1)fail('TARGET_AMBIGUOUS','请打开唯一MDY 计划站标签页或指定 tabId');return tabs[0];}
 async function request(tab,path,method='GET',body){
  const r=await bridge(tab.id,{kind:'api',path,method,body});if(!r?.ok)fail(r?.code||'NETWORK_ERROR',r?.message||'网站连接失败');return r.data;
 }
@@ -161,7 +161,7 @@ const mcpBridge = startMcpBridge({
   return {...report, session, ...(login ? {loginAction: action} : {})};
  },
  run: async (command, config) => {
-  if (command.tabId && command.tabId !== config.tabId) fail('TARGET_CHANGED', '指令中的网页与当前序图页不同，请重新读取上下文。');
+  if (command.tabId && command.tabId !== config.tabId) fail('TARGET_CHANGED', '指令中的网页与当前MDY 计划站页不同，请重新读取上下文。');
   return executor.run({...command, tabId: config.tabId});
  },
  identity: async config => {

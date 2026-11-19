@@ -7,8 +7,8 @@ export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now
  const jobs=new Map();let lastBridge=null,activeBridge=null,bridgeProtocol=null,extensionVersion=null;
  const auth=(req,token)=>{const got=Buffer.from(req.headers.authorization||''),want=Buffer.from('Bearer '+token);return got.length===want.length&&timingSafeEqual(got,want);};
  const tools=[
-  {name:'xutu_status',description:'检查本机服务、扩展版本、自动选中的序图页、会话与自动登录开关。在线时按 jobId 取结果。',inputSchema:object({})},
-  {name:'xutu_login',description:'在自动选中的序图页使用浏览器已保存的账号登录。无参数，随后用 xutu_result 核实会话。',inputSchema:object({})},
+  {name:'xutu_status',description:'检查本机服务、扩展版本、自动选中的MDY 计划站页、会话与自动登录开关。在线时按 jobId 取结果。',inputSchema:object({})},
+  {name:'xutu_login',description:'在自动选中的MDY 计划站页使用浏览器已保存的账号登录。无参数，随后用 xutu_result 核实会话。',inputSchema:object({})},
   {name:'xutu_read',description:'只读查询当前授权网站。返回jobId后用xutu_result取结果。',inputSchema:{...object({command:{type:'object'}}),required:['command']}},{name:'xutu_preview',description:'预览一次写入，展示完整变更给用户；不会保存网站。',inputSchema:{...object({command:{type:'object'}}),required:['command']}},{name:'xutu_execute',description:'仅在用户明确同意已展示的预览后调用。approval必须是用户本次同意原文，不能编造。',inputSchema:{...object({previewJobId:{type:'string'},approval:{type:'string'}}),required:['previewJobId','approval']}},{name:'xutu_result',description:'获取任务状态；dispatched/unknown时不要重放写入。',inputSchema:{...object({jobId:{type:'string'}}),required:['jobId']}}];
  const server=http.createServer(async(req,res)=>{
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
@@ -44,7 +44,7 @@ export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now
       return rpc({content:[{type:'text',text:JSON.stringify({relayVersion:VERSION,extensionVersion:online ? extensionVersion : null,bridge:online ? 'reload_extension' : 'offline'})}]});
      }
      if (!online) throw Error('浏览器桥未连接，请检查插件的 MCP 连接。');
-     if (browserTool && bridgeProtocol !== '2') throw Error('请在扩展管理页重新加载新版序图终端。');
+     if (browserTool && bridgeProtocol !== '2') throw Error('请在扩展管理页重新加载新版MDY Terminal。');
      if(jobs.size>=1000)throw Error('任务缓存已满，请维护者核对并重启；不要重放未知写入');
      let payload;
      if (browserTool) payload = {kind: name === 'xutu_login' ? 'login' : 'status'};

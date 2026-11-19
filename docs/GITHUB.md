@@ -1,6 +1,6 @@
 # GitHub
 
-仓库：https://github.com/mkiekuum/xutu-control-terminal
+仓库：https://github.com/mkiekuum/mdy-terminal
 
 详细维护、网站检测、UI/功能修复与发布流程见[GITHUB_MAINTENANCE.md](GITHUB_MAINTENANCE.md)。新电脑安装与本机升级见[CROSS_DEVICE.md](CROSS_DEVICE.md)。
 

@@ -3,31 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>序图终端</title>
+  <title>MDY Terminal</title>
   <link rel="stylesheet" href="ui.css">
 </head>
 <body>
 <aside id="updateBanner" class="setting-row" hidden><strong id="updateAdvice"></strong><a id="installUpdate" target="_blank" rel="noopener noreferrer" hidden>下载新版 ↗</a></aside>
 <header>
   <div class="identity">
-    <h1>序图终端</h1>
+    <h1>MDY Terminal</h1>
     <div class="connection-strip">
       <span class="status-dot" aria-hidden="true"></span>
       <span id="connection" role="status">连接中</span>
     </div>
   </div>
-  <button id="openSite" class="text-button">打开序图 ↗</button>
+  <button id="openSite" class="text-button">打开 MDY ↗</button>
 </header>
 <main>
   <div class="workspace card">
     <section class="compose-card">
-      <select id="workDomain" aria-label="工作范围"><option value="plan">计划图</option><option value="projects">项目</option><option value="tasks">任务</option><option value="requests">申请审批</option></select>
-      <section id="recordsPanel" hidden>
-        <div class="actions"><button id="refreshRecords">刷新记录</button><a class="button" href="https://plan.fpgabbs.cn/records.html" target="_blank" rel="noopener noreferrer">网站管理 ↗</a></div>
-        <input id="recordSearch" type="search" aria-label="搜索记录" placeholder="编号、名称、负责人">
-        <select id="recordChoice" aria-label="选择修改对象"><option value="">选择修改对象</option></select>
-        <p id="recordStatus" role="status"></p>
-      </section>
       <div class="field-heading">
         <label id="requestLabel" for="request">需求</label>
       </div>
@@ -65,7 +58,7 @@
   </section>
   <section id="moreDetails" class="card settings" aria-label="设置" hidden>
     <div class="setting-row">
-      <span>序图自动登录 <small id="loginState"></small></span>
+      <span>MDY 自动登录 <small id="loginState"></small></span>
       <button id="editLogin" type="button" aria-expanded="false" aria-controls="loginSettings">设置</button>
     </div>
     <div id="loginSettings" class="login-fields" hidden>
@@ -74,16 +67,8 @@
       <div class="actions"><button id="rememberLogin" class="primary">保存</button><button id="forgetLogin">清除</button></div>
       <p id="loginStatus" class="hint" role="status"></p>
     </div>
-    <div class="appearance-grid">
-      <label for="themeChoice">配色<select id="themeChoice"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
-      <label for="densityChoice">布局<select id="densityChoice"><option value="comfortable">舒展</option><option value="compact">紧凑</option></select></label>
-    </div>
-    <div class="setting-row sidebar-setting"><label for="sidebarMode">网站计划侧栏</label><select id="sidebarMode"><option value="native">网站默认</option><option value="overlay">点击展开</option><option value="hidden">隐藏，可从浮动入口恢复</option></select></div>
+    <div class="setting-row"><label for="hideSidebar">隐藏旧计划栏</label><input id="hideSidebar" type="checkbox"></div>
     <div class="setting-row"><span id="mcpState" role="status">MCP 未连接</span><button id="disconnectMcp">断开</button></div>
-    <div class="setting-row software-update">
-      <span id="updateStatus" role="status">检查更新中</span>
-      <button id="copyUpdate">复制更新指令</button>
-    </div>
     <details id="compatibilityDetails" hidden>
       <summary>兼容性检查</summary>
       <p id="compatibilityStatus" class="hint" role="status"></p>

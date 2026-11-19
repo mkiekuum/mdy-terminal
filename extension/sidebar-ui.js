@@ -1,18 +1,14 @@
-export function installSidebarUI(doc=document,{hidden=false,onHiddenChange=()=>{}}={}){
- const panel=doc.getElementById('fileSidebar'),toggle=doc.getElementById('fileSidebarToggle');
- if(!panel||!toggle)return {available:false,reason:'未找到左侧计划栏，未修改网页'};
- const old={class:panel.className,text:toggle.textContent,expanded:toggle.getAttribute('aria-expanded')};
- let open=false,fullyHidden=hidden;const controller=new doc.defaultView.AbortController(),options={capture:true,signal:controller.signal};
- const style=doc.createElement('style');style.textContent=`html.xutu-sidebar-optimized{--file-space:0px!important}html.xutu-sidebar-optimized #fileSidebar{position:fixed!important;z-index:1000!important;box-sizing:border-box!important;width:min(620px,calc(100% - 12px))!important;max-height:100vh;max-height:100dvh;overflow:auto;overscroll-behavior:contain;box-shadow:5px 0 18px #0002}html.xutu-sidebar-optimized #fileSidebar.is-collapsed{width:36px!important;overflow:hidden!important}html.xutu-sidebar-optimized #fileSidebarPin{display:none!important}#xutu-sidebar-close{position:sticky;top:0;z-index:2;width:100%;background:Canvas;color:CanvasText;padding:7px;cursor:pointer}html.xutu-sidebar-optimized #fileSidebar.is-collapsed #xutu-sidebar-close{display:none}html.xutu-sidebar-optimized #fileSidebarToggle{touch-action:manipulation}`;
- const close=doc.createElement('button');close.id='xutu-sidebar-close';close.textContent='收起计划列表';close.type='button';panel.prepend(close);doc.head.append(style);doc.documentElement.classList.add('xutu-sidebar-optimized');
- const hide=doc.createElement('button');hide.type='button';hide.id='xutu-sidebar-hide';hide.textContent='隐藏侧栏';panel.prepend(hide);
- const restore=doc.createElement('button');restore.type='button';restore.id='xutu-sidebar-restore';restore.textContent='计划';restore.setAttribute('aria-label','恢复计划侧栏');doc.body.append(restore);
- style.textContent+='html.xutu-sidebar-hidden #fileSidebar{display:none!important}#xutu-sidebar-restore{position:fixed;left:8px;top:50%;z-index:1001;background:Canvas;color:CanvasText;border:1px solid #8aa99b;border-radius:12px;padding:12px 8px;box-shadow:0 4px 20px #0002;cursor:pointer}#xutu-sidebar-restore[hidden]{display:none!important}#xutu-sidebar-hide{width:100%;padding:8px;background:Canvas;color:CanvasText;border:0;border-bottom:1px solid #8aa99b;cursor:pointer}html.xutu-sidebar-optimized #fileSidebar.is-collapsed #xutu-sidebar-hide{display:none}';
- const render=()=>{doc.documentElement.classList.toggle('xutu-sidebar-hidden',fullyHidden);restore.hidden=!fullyHidden;panel.classList.toggle('is-collapsed',!open);toggle.textContent=open?'‹ 收起计划':'计划 ›';toggle.setAttribute('aria-expanded',String(open));};
- const block=e=>{if(e.target===panel||panel.contains(e.target))e.stopImmediatePropagation();};
- for(const type of ['pointerenter','pointerleave','pointermove','focusin','focusout'])doc.addEventListener(type,block,options);
- doc.addEventListener('click',e=>{if(hide.contains(e.target)||restore.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();fullyHidden=hide.contains(e.target);open=!fullyHidden;render();onHiddenChange(fullyHidden);if(fullyHidden)restore.focus();else toggle.focus();}else if(toggle.contains(e.target)||close.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();open=close.contains(e.target)?false:!open;render();}else if(open&&!panel.contains(e.target)){open=false;render();}},options);
- doc.addEventListener('keydown',e=>{if(e.key==='Escape'&&open){open=false;render();toggle.focus();}},options);
- const observer=new doc.defaultView.MutationObserver(()=>{if(panel.classList.contains('is-collapsed')===open)render();});observer.observe(panel,{attributes:true,attributeFilter:['class']});render();
- return {available:true,destroy(){controller.abort();observer.disconnect();close.remove();hide.remove();restore.remove();style.remove();doc.documentElement.classList.remove('xutu-sidebar-hidden');doc.documentElement.classList.remove('xutu-sidebar-optimized');panel.className=old.class;toggle.textContent=old.text;if(old.expanded===null)toggle.removeAttribute('aria-expanded');else toggle.setAttribute('aria-expanded',old.expanded);}};
+// Hide only the legacy plan library, leaving MDY's site navigation intact.
+export function installSidebarUI(doc=document){
+ const panel=doc.getElementById('fileSidebar');
+ if(!panel)return {available:false,reason:'当前页面没有旧计划栏'};
+ const style=doc.createElement('style');
+ style.dataset.mdyLegacySidebar='hidden';
+ style.textContent='html.mdy-hide-legacy-sidebar{--file-space:0px!important}html.mdy-hide-legacy-sidebar #fileSidebar{display:none!important}';
+ doc.head.append(style);
+ doc.documentElement.classList.add('mdy-hide-legacy-sidebar');
+ return {available:true,destroy(){
+  style.remove();
+  doc.documentElement.classList.remove('mdy-hide-legacy-sidebar');
+ }};
 }

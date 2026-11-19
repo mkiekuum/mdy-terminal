@@ -1,3 +1,7 @@
+# v4.6.0 当前约定（优先于下方历史说明）
+
+产品与仓库为 MDY Terminal / mdy-terminal。保留 MCP 协议和原扩展目录/持久存储。首页没有工作范围选择器；JSON 折叠；页面复制仅 DOM、HTML；历史仅复制全部记录；不恢复配色、密度与底部更新区。侧栏只提供隐藏旧 fileSidebar 的开关，不干预新版 MDY 导航。按钮满宽或等分。实际浏览器验收与合成测试分开记录，不把本地预览当作生产扩展已加载。
+
 # v3.1.2 当前约定（优先于下方旧版说明）
 
 按用户新要求增加可选本机 MCP 和特定侧栏优化，仍不恢复旧业务 CLI/Native Messaging/本地问卷/外观编辑器/AI API Key。首页使用帮助已移除；手册与 Release 安装说明仍保留。页面复制摘要、DOM、离线 HTML 合为一处。参见 [本版验收](V3.1.2_UI_MCP_REPORT.md) 与 [MCP 手册](../mcp/README.md)。
@@ -41,7 +45,7 @@ gh auth status
 gh repo view --json nameWithOwner,defaultBranchRef,url
 ```
 
-已有登录有效则直接使用，不重复要求登录。只读下载无需登录；需要推送而未登录时才让使用者完成授权。仓库默认地址为 https://github.com/mkiekuum/xutu-control-terminal，分享给其他人时确认其是普通使用者还是已授权维护者。不要修改Git全局身份、重置工作区或覆盖他人未提交文件。
+已有登录有效则直接使用，不重复要求登录。只读下载无需登录；需要推送而未登录时才让使用者完成授权。仓库默认地址为 https://github.com/mkiekuum/mdy-terminal，分享给其他人时确认其是普通使用者还是已授权维护者。不要修改Git全局身份、重置工作区或覆盖他人未提交文件。
 
 ## 2. 网站更新检查与兼容性复核
 

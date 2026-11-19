@@ -3,9 +3,6 @@ import assert from 'node:assert/strict';
 import {ApiAdapter} from '../extension/api.js';
 import {McpGate} from '../extension/mcp-policy.js';
 import {integrated,site,envelope} from './v25-helpers.js';
-import {JSDOM} from 'jsdom';
-import {setupRecordsPanel} from '../extension/ui-records.js';
-import {readFileSync} from 'node:fs';
 
 function fixture(){
  const web=site(), requests=[], projects=[{id:'P',kind:'internal',referenceNumber:'JH-QA',shortName:'QA',owner:'USER_A',planId:''}],meta={reviewer:false,types:['硬件'],statuses:['等待','已完成'],users:['USER_A']};
@@ -60,16 +57,3 @@ test('reviewers still submit new records for approval and can review and link',a
  const link=await f.api.run({id:'link',op:'records.link',params:{kind:'project',targetId:'P',before:f.projects[0],planId:''}},{mode:'execute'});
  assert(link.serverVerified);
 });
-test('record UI refresh, search, selected context and stale target handling',async()=>{
- const dom=new JSDOM(readFileSync(new URL('../extension/ui.html',import.meta.url),'utf8'));
- const f=fixture();globalThis.Option=dom.window.Option;
- const doc=dom.window.document,context=setupRecordsPanel(doc,async op=>({ 'records.projects':f.projects,'records.meta':f.meta }[op]));
- doc.getElementById('workDomain').value='projects';
- await doc.getElementById('refreshRecords').onclick();
- assert.equal(doc.getElementById('recordChoice').options.length,2);
- doc.getElementById('recordChoice').value='P';
- assert.equal((await context()).selected.id,'P');
- f.projects.length=0;await assert.rejects(context(),/不存在/);
- dom.window.close();delete globalThis.Option;
-});
-

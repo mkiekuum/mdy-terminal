@@ -28,7 +28,7 @@ export function rememberedLogin(store,{inspectSession,submit,now=()=>Date.now()}
  return {
   async status(){const c=await store.get(key);return {enabled:!!c,account:c?.account||''};},
   async save(account,password){
-   if(typeof account!=='string'||!/^[a-zA-Z0-9._@-]{1,100}$/.test(account.trim())||typeof password!=='string'||!password||password.length>300||/[\x00]/.test(password))throw Error('请填写有效的序图登录账号和密码。');
+   if(typeof account!=='string'||!/^[a-zA-Z0-9._@-]{1,100}$/.test(account.trim())||typeof password!=='string'||!password||password.length>300||/[\x00]/.test(password))throw Error('请填写有效的MDY 计划站登录账号和密码。');
    await store.set(key,{account:account.trim(),password});
    generation++;attempts.clear();
    return {enabled:true,account:account.trim()};

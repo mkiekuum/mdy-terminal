@@ -60,3 +60,13 @@ test('从 macOS 样式的目录别名运行更新入口，确实替换并回读�
  assert.equal(JSON.parse(applied.stdout).status,'files_replaced');
  assert.equal(JSON.parse(await fs.readFile(path.join(dirs.install,'manifest.json'),'utf8')).version,'3.2.0');
 });
+
+test('rebranding upgrades the same directory without losing user files',async t=>{
+ const {dirs}=await fixture(t),file=path.join(dirs.candidate,'manifest.json');
+ const next=JSON.parse(await fs.readFile(file,'utf8'));next.name='MDY Terminal';next.version='4.6.0';
+ await fs.writeFile(file,JSON.stringify(next));
+ const result=await replaceUnpacked({...dirs,apply:true});
+ assert.equal(result.install,dirs.install);assert.equal(result.newVersion,'4.6.0');
+ assert.equal(await fs.readFile(path.join(dirs.install,'user-note.txt'),'utf8'),'retain');
+ assert.equal(JSON.parse(await fs.readFile(path.join(dirs.install,'manifest.json'),'utf8')).name,'MDY Terminal');
+});
