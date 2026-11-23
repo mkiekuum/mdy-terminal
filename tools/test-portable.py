@@ -7,7 +7,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 import zipfile
 
 with tempfile.TemporaryDirectory(prefix="MDY 配对 ") as tmp:
@@ -19,6 +18,15 @@ with tempfile.TemporaryDirectory(prefix="MDY 配对 ") as tmp:
     node.chmod(0o755)
     home = root / "本机 config"
     env = {**os.environ, "XUTU_HOME": str(home), "PATH": ""}
+    if os.name == "nt":
+        launcher = [os.environ["COMSPEC"], "/d", "/c", "Start-MCP.cmd", "--help"]
+    else:
+        launcher = ["/bin/sh", "Start-MCP.command", "--help"]
+        utilities = root / "utilities"
+        utilities.mkdir()
+        (utilities / "dirname").symlink_to("/usr/bin/dirname")
+        env["PATH"] = str(utilities)
+    assert b"--new-instance" in subprocess.check_output(launcher, cwd=folder, env=env, timeout=10)
     guard = socket.socket()
     try:
         guard.bind(("127.0.0.1", 62924))
@@ -45,7 +53,7 @@ with tempfile.TemporaryDirectory(prefix="MDY 配对 ") as tmp:
             # Invoke the actual bundled stdio client, on the selected loopback port.
             line = json.dumps({"jsonrpc":"2.0","id":9,"method":"tools/list","params":{}})
             result = subprocess.run([node,"mcp/stdio.mjs","--paired"],cwd=folder,
-                env={**env,"XUTU_PAIR_FILE":str(file)},input=line+"\n",text=True,
+                env={**env,"XUTU_PAIR_FILE":str(file)},input=line+"\n",encoding="utf-8",
                 capture_output=True,check=True,timeout=15)
             assert "xutu_read" in [t["name"] for t in json.loads(result.stdout)["result"]["tools"]]
             if not suffix:

@@ -5,6 +5,11 @@ import {randomBytes,randomUUID} from 'node:crypto';
 import {createRelay} from './relay.mjs';
 import {relayUrl} from '../extension/mcp-bridge.js';
 
+if(process.argv.includes('--help')){
+  console.log('Start-MCP [--new-instance]: run a paired local relay; use --new-instance for an independent port and pairing file.');
+  process.exit(0);
+}
+if(process.argv.slice(2).some(arg=>arg!=='--new-instance'))throw Error('Unknown option. Run with --help.');
 const isolated=process.argv.includes('--new-instance');
 const root=path.resolve(process.env.XUTU_HOME || path.join(os.homedir(),'.xutu-mcp'));
 fs.mkdirSync(root,{recursive:true,mode:0o700});

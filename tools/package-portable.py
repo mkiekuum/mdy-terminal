@@ -1,7 +1,6 @@
 """Build an offline MCP bundle from one pinned, verified Node distribution."""
 import argparse
 import hashlib
-import io
 import json
 from pathlib import Path
 import shutil
