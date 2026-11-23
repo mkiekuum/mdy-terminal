@@ -1,3 +1,4 @@
+import {pagePlanTarget} from './page-plan-target.js';
 import {choosePlanTab} from './active-plan-tab.js';
 import {startMcpBridge} from './mcp-bridge.js';
 import {redact} from './assistance.js';
@@ -44,7 +45,8 @@ async function exportCommand(tab,op,p){
 const checkUpdates=createUpdateChecker({load:async()=>(await chrome.storage.local.get('releaseCheck')).releaseCheck,save:report=>chrome.storage.local.set({releaseCheck:report})});
 async function compatibilityFor(tab){return collectCompatibility({inspect:()=>bridge(tab.id,{kind:'inspect'}),session:()=>request(tab,'/api/session'),plans:()=>request(tab,'/api/plans'),probe:async()=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:probeNativeCompatibility}))[0]?.result,userScripts:async()=>{if(!chrome.userScripts?.getScripts)return false;await chrome.userScripts.getScripts();return true;}});}
 const store={get:async k=>(await chrome.storage.local.get(k))[k],set:async(k,v)=>chrome.storage.local.set({[k]:v})};
-async function currentPlanTarget(){
+async function currentPlanTarget(tabId){
+ if (tabId !== undefined) return {tab:await tabFor({tabId}), selection:"explicit"};
  const all=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});
  let last;
  if(chrome.windows?.getLastFocused)last=(await chrome.windows.getLastFocused().catch(()=>null))?.id;
@@ -85,7 +87,7 @@ export const executor=new Executor(store,async(s,e,batch)=>{
  }
  if(s.op==='site.compatibility')return {data:await compatibilityFor(tab),serverVerified:false};
  if(s.op==='site.context'){
-  const target=s.target?.id||s.target?.number?s.target:(await bridge(tab.id,{kind:'inspect'})).activeTarget;
+  const target=s.target?.id||s.target?.number?s.target:await pagePlanTarget(await bridge(tab.id,{kind:'inspect'}), () => request(tab,'/api/plans'));
   const context=await collectContext((path,method,body)=>request(tab,path,method,body),target,s.params);
   if(context.plan){
    try{const result=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:readNativeAnalysis,args:[context.plan.current]});context.siteAnalysis=result[0]?.result||{available:false,reason:'网页未返回评分'};}
@@ -143,6 +145,7 @@ if(chrome.storage?.local){
 const mcpBridge = startMcpBridge({
  storage: chrome.storage.local,
  resolveTarget: currentPlanTarget,
+ schedule:setTimeout,
  hasPermission: () => chrome.permissions.contains({origins:['http://127.0.0.1/*']}),
  browserStatus: async (target, login) => {
   const {enabled: autoLoginEnabled} = await autoLogin.status();
@@ -167,7 +170,9 @@ const mcpBridge = startMcpBridge({
  identity: async config => {
   const tab = await tabFor({tabId: config.tabId});
   const session = await sessionFor(tab);
-  return JSON.stringify([tab.id, new URL(tab.url).searchParams.get('plan'), session.actor]);
+  const page = await bridge(tab.id, {kind:'inspect'});
+  if (!page?.activeTarget) fail('TARGET_CHANGED', '无法核对当前计划');
+  return JSON.stringify([tab.id, new URL(tab.url).searchParams.get('plan'), page.activeTarget.number, page.activeTarget.owner, session.actor]);
  }
 });
 chrome.runtime.onStartup?.addListener(async () => {

@@ -1,6 +1,6 @@
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
-import {createConnection} from './mcp-connection.js';
+import {createConnection,parseConnection} from './mcp-connection.js';
 import {flowFeedback} from './flow-check.js';
 import {projectGroupMode} from './prompt-context.js';
 import {businessDiff} from './history.js';
@@ -128,6 +128,22 @@ $('hideSidebar').onchange=async()=>{
   for(const tab of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidebar-loader.js']});
   message('旧计划栏设置已保存。');
  }catch(error){message(error.message,true);}
+};
+$('localPairing').onchange=async event=>{
+ const file=event.target.files?.[0];
+ if(!file)return;
+ try{
+  if(file.size>4096)throw Error('请选择本机 MCP 生成的 connection.json');
+  const selected=tabId();
+  if(!await chrome.permissions.request({origins:['http://127.0.0.1/*']}))throw Error('需要访问本机服务的权限');
+  const config=parseConnection(await file.text(),selected);
+  if(selected!==tabId())throw Error('目标网页已变化，请重新选择');
+  const previous=(await chrome.storage.local.get('mcpConnection')).mcpConnection;
+  if(previous?.token===config.token && previous.url===config.url && previous.bridgeId)config.bridgeId=previous.bridgeId;
+  await chrome.storage.local.set({mcpConnection:config});
+  message('已保存配对，正在连接本机服务。');
+ }catch(error){message(error.message,true);}
+ finally{event.target.value='';}
 };
 $('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews']);$('mcpState').textContent='已断开，清除本机连接密钥。';});
 

@@ -1622,6 +1622,423 @@
     {
       "type": "object",
       "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.projectPage"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "q": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "coverage": {
+              "type": "string"
+            },
+            "assistantRole": {
+              "type": "string"
+            },
+            "assistantName": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.taskPage"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "q": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "coverage": {
+              "type": "string"
+            },
+            "assistantRole": {
+              "type": "string"
+            },
+            "assistantName": {
+              "type": "string"
+            },
+            "projectId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.planPage"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "q": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "coverage": {
+              "type": "string"
+            },
+            "assistantRole": {
+              "type": "string"
+            },
+            "assistantName": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.workPage"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "q": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "coverage": {
+              "type": "string"
+            },
+            "assistantRole": {
+              "type": "string"
+            },
+            "assistantName": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.summary"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "field": {
+              "enum": [
+                "created",
+                "updated",
+                "completed"
+              ]
+            },
+            "month": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.listSummary"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.overdue"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "month": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.claims"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "JH",
+                "SJ"
+              ]
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.availableNumbers"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "JH",
+                "SJ"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.projectNodes"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "projectId"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.claimNumber"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "JH",
+                "SJ"
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op",
+        "params"
+      ],
+      "properties": {
+        "op": {
+          "const": "records.linkNode"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "planId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "before": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "taskId",
+            "planId",
+            "nodeId",
+            "before"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "op",
         "params"
       ],
@@ -1669,6 +2086,15 @@
                     "shortName": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "customerGroupName": {
+                      "type": "string"
+                    },
+                    "internalGroupName": {
+                      "type": "string"
+                    },
+                    "projectGroupName": {
+                      "type": "string"
                     },
                     "owner": {
                       "type": "string",
@@ -1811,6 +2237,15 @@
                     "shortName": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "customerGroupName": {
+                      "type": "string"
+                    },
+                    "internalGroupName": {
+                      "type": "string"
+                    },
+                    "projectGroupName": {
+                      "type": "string"
                     },
                     "owner": {
                       "type": "string",
@@ -2026,6 +2461,23 @@
             "toNodeId",
             "actualCompleteDate"
           ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "graph.relations"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
           "additionalProperties": false
         }
       }

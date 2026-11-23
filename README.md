@@ -1,5 +1,7 @@
 # MDY Terminal v4.6.0
 
+**5.0.0 安装**：浏览器加载 chrome.zip。MCP 从 [Releases](https://github.com/mkiekuum/mdy-terminal/releases/latest) 另选与系统、处理器匹配的便携包，内置 Node.js。详见[本机启动、端口与配对](mcp/README.md)。
+
 打开MDY 计划，输入需求并复制给 MCP AI。AI 会核对本次目标、预览修改并在确认后执行。需要手动执行时展开「JSON 指令」。终端会自动识别当前 MDY 页。有多个候选时，切到要处理的计划即可。
 
 在设置中可保存MDY 账号并启用自动登录。首页适配窄窗口与深色模式，可复制本账号全部保留的历史记录，由 AI 预览并恢复指定阶段。页面导出支持复制 DOM 和下载 HTML。检测到新版时，顶部显示更新建议。

@@ -1,3 +1,4 @@
+import {workspaceSchemas} from './workspace.js';
 // Shared runtime parameter contracts; also exported as JSON Schema.
 const string={type:'string'}, nonempty={type:'string',minLength:1}, boolean={type:'boolean'};
 const object=(properties,required=[])=>({type:'object',properties,required,additionalProperties:false});
@@ -43,16 +44,17 @@ export const parameterSchemas={
  'system.backup.get':object({backupId:nonempty},['backupId'])
 };
 const recordKind={enum:['project','task']}, basis={type:'object'};
-const projectPayload=object({kind:{enum:['customer','internal']},referenceNumber:nonempty,shortName:nonempty,owner:nonempty,category:string,status:{enum:['已启动','未启动','暂停','已完成']},startDate:string,targetDate:string,note:string},['kind','referenceNumber','shortName','owner']);
+const projectPayload=object({kind:{enum:['customer','internal']},referenceNumber:nonempty,shortName:nonempty,customerGroupName:string,internalGroupName:string,projectGroupName:string,owner:nonempty,category:string,status:{enum:['已启动','未启动','暂停','已完成']},startDate:string,targetDate:string,note:string},['kind','referenceNumber','shortName','owner']);
 const taskPayload=object({projectId:nonempty,type:nonempty,subject:nonempty,boardName:string,owner:nonempty,status:string,completedAt:string,targetDate:string,content:string,deliverable:string,note:string},['projectId','type','subject','owner']);
 const payload={oneOf:[projectPayload,taskPayload]};
 for(const op of ['records.meta','records.projects','records.tasks','records.requests'])parameterSchemas[op]=object({});
+Object.assign(parameterSchemas,workspaceSchemas);
 parameterSchemas['records.submit']=object({kind:recordKind,action:{enum:['create','update']},targetId:nonempty,before:basis,payload,direct:boolean},['kind','action','payload']);
 parameterSchemas['records.review']=object({requestId:nonempty,before:basis,decision:{enum:['approve','reject']},payload,note:string},['requestId','before','decision','payload']);
 parameterSchemas['records.link']=object({kind:recordKind,targetId:nonempty,before:basis,planId:string},['kind','targetId','before','planId']);
 parameterSchemas['schedule.updateInputs']=parameterSchemas['plan.update'];
 parameterSchemas['progress.complete']=parameterSchemas['progress.update'];
-for(const op of ['graph.inspect','graph.simplify','plan.list','plan.get','plan.export','plan.archive','plan.restore','node.list','edge.list','progress.read','review.status','review.submit','review.approve','history.list','project.list','group.list','task.list','user.list','site.session','system.version','system.health','system.capabilities','site.inspect','site.capabilities','site.context','site.tabs','site.compatibility'])parameterSchemas[op]=object({});
+for(const op of ['graph.relations','graph.inspect','graph.simplify','plan.list','plan.get','plan.export','plan.archive','plan.restore','node.list','edge.list','progress.read','review.status','review.submit','review.approve','history.list','project.list','group.list','task.list','user.list','site.session','system.version','system.health','system.capabilities','site.inspect','site.capabilities','site.context','site.tabs','site.compatibility'])parameterSchemas[op]=object({});
 parameterSchemas['site.context']=object({projectGroups:{enum:['all','selected','omit']}});
 for(const op of ['history.undo','history.redo'])parameterSchemas[op]=object({reviewToken:nonempty});
 parameterSchemas['history.list']=object({});

@@ -1,3 +1,5 @@
+import {planAccess,readRelations} from './plan-relations.js';
+import {workspaceReads,workspacePath} from './workspace.js';
 import {recordReads,recordWrites,runRecord} from './records.js';
 import {inspectFlow,enforceFlow} from './flow-check.js';
 import {verifySaved} from './recovery.js';
@@ -14,10 +16,10 @@ writes.push('task.merge','task.split');
 writes.push('task.assign','task.updateStatus',...recordWrites);
 Object.assign(reads,recordReads);
 export async function canEditPlan(request, record, session) {
- if (session.role === 'admin' || record.current.planOwner === session.actor) return true;
- if (Array.isArray(record.collaborators) && record.collaborators.includes(session.actor)) return true;
- const plans = await request('/api/plans');
- return plans.some(plan => plan.id === record.id && plan.assistantEditable === true);
+ if (session.mustChangePassword || !session.actor) return false;
+ if (planAccess(session,record).canEdit) return true;
+ const plans=await request('/api/plans');
+ return planAccess(session,record,plans.find(plan=>plan.id===record.id)).canEdit;
 }
 
 // The plan editor's date picker saves the edge through the ordinary plan change API.
@@ -64,7 +66,7 @@ export class ApiAdapter{
  }
  async runInternal(s,e,trace){validateStep(s);const p=s.params||{},t=s.target||{},op=s.op;
  if(op==='plan.delete'&&p.permanent)fail('UNSUPPORTED_BY_SITE','已核实前端仅有 trash/undelete；未发现硬删接口');
- const isWrite=writes.includes(op);if(!isWrite&&!reads[op]&&!['plan.get','plan.export','node.list','edge.list','progress.read','review.status','history.list','graph.inspect'].includes(op))fail('UNSUPPORTED_BY_SITE','未核实此操作的真实站点契约');
+ const isWrite=writes.includes(op);if(!isWrite&&!reads[op]&&!['plan.get','plan.export','node.list','edge.list','progress.read','review.status','history.list','graph.relations','graph.inspect'].includes(op))fail('UNSUPPORTED_BY_SITE','未核实此操作的真实站点契约');
  if(e.mode==='validate')return {data:{valid:true,contract:'frontend-observed',authorization:'not_checked'},serverVerified:false};
  await this.options.onPhase?.('checking');
  const session=await this.request('/api/session');
@@ -75,7 +77,7 @@ export class ApiAdapter{
   fail('PERMISSION_DENIED','当前账号只可为自己创建计划；指定其他负责人需管理员权限。');
  }
  if(recordWrites.includes(op))return await runRecord(this.request,s,e);
- if(reads[op])return {data:await this.request(reads[op]),serverVerified:true};
+ if(reads[op])return {data:await this.request(Object.hasOwn(workspaceReads,op)?workspacePath(op,p):reads[op]),serverVerified:true};
  if(['task.assign','task.updateStatus'].includes(op)){
  const planId=await this.resolve(t),items=await this.request('/api/work-tasks');
  const matches=items.filter(x=>x.planId===planId&&x.from===p.fromNodeId&&x.to===p.toNodeId);
@@ -96,6 +98,10 @@ export class ApiAdapter{
  else if(op.startsWith('project.')||op.startsWith('group.')){
  if(e.execution?.backup)fail('UNSUPPORTED_BY_SITE','项目/权限配置快照恢复未核实，未执行写入');
  const endpoint=op.startsWith('project.')?'/api/project-groups':'/api/visibility-groups',actions={'project.create':'create','project.assignPlan':'assign','group.create':'create','group.update':'rename','group.remove':'delete','group.assign':'assign'};
+ if(op==='project.assignPlan' && session.role!=='admin'){
+  const listed=(await this.request('/api/plans')).find(item=>item.id===p.planId);
+  if(!listed || listed.planOwner!==session.actor)fail('PERMISSION_DENIED','只有计划负责人或管理员可调整所属项目组');
+ }
  if(e.mode==='preview')return {data:{endpoint,action:actions[op],params:p},serverVerified:false};
  trace.submitted=true;await this.request(endpoint,'POST',{...p,action:actions[op]});
  const data=await this.request(endpoint),groups=Array.isArray(data)?data:data.groups||[];let verified=false;
@@ -113,6 +119,7 @@ export class ApiAdapter{
  }
  id=await this.resolve(t);path='/api/plans/'+encodeURIComponent(id);before=await this.request(path);current=clone(before.current);
  if(['plan.get','plan.export'].includes(op))return {targetId:id,afterVersion:before.revision,data:before,serverVerified:true};
+ if(op==='graph.relations')return {targetId:id,afterVersion:before.revision,data:await readRelations(this.request,before,session),serverVerified:true};
  if(op==='graph.inspect')return {data:auditGraph(current),serverVerified:true};
  if(op==='node.list'||op==='edge.list')return {data:current[op==='node.list'?'nodes':'edges'],serverVerified:true};
  if(op==='progress.read'||op==='review.status')return {data:op==='review.status'?before.review:current.edges.map(x=>({from:x.from,to:x.to,completedAt:x.completedAt})),serverVerified:true};

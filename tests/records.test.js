@@ -9,6 +9,7 @@ function fixture(){
  const base=web.request,posts=[];
  let alter=false, reject=false;
  web.request=async(path,method='GET',body)=>{
+  if(path==='/api/number-claims/options?kind=JH')return {items:[{number:'JH-QA'}]};
   if(path==='/api/records/meta')return structuredClone(meta);
   if(path==='/api/records/projects')return structuredClone(projects);
   if(path==='/api/records/requests'&&method==='GET')return structuredClone(requests);
@@ -29,7 +30,7 @@ function fixture(){
  const command=(op,params)=>envelope([{id:'r',op,params}]);
  return {web,gate,system,meta,requests,tasks,projects,posts,command,api:new ApiAdapter(web.request),set alter(v){alter=v;},set reject(v){reject=v;}};
 }
-const payload={kind:'internal',referenceNumber:'JH-QA',shortName:'QA',owner:'USER_A'};
+const payload={projectGroupName:'测试项目群',kind:'internal',referenceNumber:'JH-QA',shortName:'QA',owner:'USER_A'};
 test('MCP new project remains pending, reads back and request replay does not write twice',async()=>{
  const f=fixture(),c=f.command('records.submit',{kind:'project',action:'create',payload});
  const preview=await f.gate.handle({kind:'preview',id:'preview',command:c});
@@ -48,7 +49,7 @@ test('review permission, update basis and readback mismatch are enforced',async(
  f.alter=true;await assert.rejects(f.api.run({id:'r',op:'records.submit',params:{kind:'project',action:'create',payload}},{mode:'execute'}),{code:'SERVER_NOT_CONFIRMED',outcome:'unconfirmed'});
 });
 test('reviewers still submit new records for approval and can review and link',async()=>{
- const f=fixture();f.meta.reviewer=true;
+ const f=fixture();f.meta.reviewer=true;f.meta.canAssociate=true;
  await assert.rejects(f.api.run({id:'r',op:'records.submit',params:{kind:'project',action:'create',direct:true,payload}},{mode:'preview'}),{code:'INVALID_SCHEMA'});
  await f.api.run({id:'r',op:'records.submit',params:{kind:'project',action:'create',payload}},{mode:'execute'});
  const before=structuredClone(f.requests[0]);

@@ -21,5 +21,11 @@ export function promptContracts(){
  const contracts=Object.fromEntries(Object.entries(parameterSchemas).filter(([op])=>op!=='script.execute'));
  // The same actual schemas stay present once. References resolve within this commands object.
  contracts['plan.batch']={...contracts['plan.batch'],properties:{flowCheck:{$ref:'#/plan.create/properties/flowCheck'},changes:{...contracts['plan.batch'].properties.changes,items:{oneOf:batchOperations.map(op=>({type:'object',properties:{op:{const:op},params:{$ref:'#/'+op}},required:['op','params'],additionalProperties:false}))}}}};
+ const seen=new Map();
+ for(const [name,schema] of Object.entries(contracts)){
+  const key=JSON.stringify(schema);
+  if(seen.has(key))contracts[name]={$ref:'#/'+seen.get(key)};
+  else seen.set(key,name);
+ }
  return contracts;
 }

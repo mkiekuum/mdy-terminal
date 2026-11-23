@@ -2,7 +2,11 @@
 
 这是MDY Terminal的可选连接组件，不是旧版业务 CLI 或 Native Messaging。无需公网域名和公网部署。普通 JSON 和隐藏旧计划栏不需要启动此服务。
 
-## 首次使用
+## 便携版（推荐）
+
+没有安装 Node.js 的电脑请从同版本 Release 下载与系统和架构匹配的便携包。解压后运行根目录 Start-MCP.cmd 或 Start-MCP.command。首次空闲端口由服务选择；已有配置冲突时复用已运行的服务，或使用 --new-instance。扩展设置中导入启动器显示的 connection.json。stdio 客户端可直接调用包内 runtime/node（Windows 为 node.exe）及 mcp/stdio.mjs --paired；多实例通过 XUTU_PAIR_FILE 指定配对文件。保留整个解压目录。
+
+## 源码方式首次使用
 
 1. 登录MDY 计划站，输入需求，点击“复制给 MCP AI”。首次由浏览器询问允许连接本机，须使用者自己授权。
 2. 插件保存当前浏览器的连接配置，每次请求时自动识别MDY 计划站页。有多个候选时，切到目标计划再试。MCP 提示词含 clientToken 和 bridgeToken，供可信本机 AI 配置连接。
@@ -10,7 +14,7 @@
 4. 服务仅监听127.0.0.1:62924，不部署公网。保持服务进程；关闭后连接断开。Windows 手动备用入口为 mcp/Start-MCP.cmd，普通 JSON 使用不需要 Node。
 5. 每位用户独立生成凭据，不随源码分享。旧配置更新前核对归属和在途请求；只停止确认为该本机服务的进程。浏览器重启后已启用的配对会继续工作。每次请求自动识别当前MDY 计划站页；密钥沿用，断开则删除本机扩展配置。
 
-服务启动报 EADDRINUSE 时先确认是否已经启动，不能杀掉所有 Node 进程。更改端口可在私有 connection.json 的 url 中调整，本版自动配对使用默认端口，特殊端口由维护者统一配置，不在首页提供设置表单。重启服务后旧队列不恢复；原执行结果未知时先查网站/插件原 requestId，不能重新发送旧写入。
+服务启动报 EADDRINUSE 时先确认是否已经启动，不能杀掉所有 Node 进程。更改端口可在私有 connection.json 的 url 中调整，浏览器与 AI 客户端均须使用同一份实际运行的配对配置。重启服务后旧队列不恢复；原执行结果未知时先查网站/插件原 requestId，不能重新发送旧写入。
 
 ## 支持标准 Streamable HTTP 的客户端
 
@@ -58,16 +62,22 @@ codex mcp add xutu-terminal --url http://127.0.0.1:62924/mcp --bearer-token-env-
 
 - `xutu_status`：无参数。检查服务与浏览器桥；在线时按 jobId 获取两端版本、自动选页、会话和自动登录状态。
 - `xutu_login`：无参数。使用扩展内已保存的资料尝试登录，按 jobId 读取结果。只以 session 为 `already_logged_in` 判定登录成功。没有网页或目标不唯一时请打开或切到要操作的MDY 计划站页。
-- `xutu_read`：只读 JSON 查询，返回 jobId 后用 `xutu_result` 获取结果。
+- `xutu_read` 支持完整 command，4.6.1 服务也可无参读取当前计划摘要，或仅传 tabId。摘要包含目标、版本、节点和连线数量、完整性及警告。从原回执读取节点时，可给 xutu_result 传 path 数组 ["steps","0","data","plan","current","nodes"] 和 limit。按 nextOffset 继续，拼接所有 jsonText 后解析 JSON。
 - `xutu_preview`：一次操作或一个 plan.batch 的预览，保存短期执行依据。
 - `xutu_execute`：绑定成功 previewJobId 与使用者本次明确同意原文 approval。预览有效期5分钟，不能更换命令；账号/网页变化、版本冲突会停止。恢复通过既有 history.preview 的 reviewToken 核对。
 - `xutu_result`：查询原任务；dispatched 表示尚未确认完成，不是成功，也不能自动重发。
 
 AI 必须先展示预览摘要并等用户同意。approval 由客户端引用，服务无法独立证明这是人类输入，不能将此说成独立人工认证；不要编造同意。脚本执行及带可执行内容的原始页面导出仍只在本机插件的原有入口处理。其他现有业务/审核操作遵循正式参数契约及服务器权限，不代表每项均通过真实网站测试。
 
-约30秒轮询一次，浏览器休眠或关闭会延迟/停止。预览在扩展本机短期保存，浏览器工作线程重启可继续核对；服务重启不重放任务。断开不会撤销已经提交的操作。日志/任务仅在本机，服务内存最多保留1000条任务，满时维护者先核对未知结果再重启。
+4.6.1 的浏览器桥在空闲时每 3 秒取件，有积压时连续取件。工作线程被挂起或连接失败后由 Chrome 的 30 秒闹钟唤醒。浏览器休眠或关闭会延迟或停止取件。预览在扩展本机短期保存，浏览器工作线程重启可继续核对；服务重启不重放任务。断开不会撤销已经提交的操作。日志/任务仅在本机，服务最多保留 1000 个任务，满时优先回收超过 5 分钟的已完成读取或会话查询。执行回执和未确认任务保留。
 
 实现依据：[MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)、[Codex MCP](https://learn.chatgpt.com/docs/extend/mcp)。协议握手版本 2025-06-18，提供 JSON 响应；GET SSE 未实现，返回405。不是对所有 AI 产品的兼容保证。
 
 
 在「设置 → MDY 计划站自动登录 → 设置」可保存账号，平时表单收起。密码只存在本浏览器扩展存储，不会回显；点「清除」可停用。
+
+## 5.0 计划关系查询
+
+向 xutu_read 传入 planId（网站稳定 ID，可从 records.planPage 取得）和可选 tabId。使用 xutu_result 查询原 jobId；大图按 path 读取 steps、0、data 下的字段。普通 JSON 使用 graph.relations 和 target.id。
+
+返回项目主图、任务自有图、任务所属项目图、绑定节点和所属组。日期沿用网站字段，包括任务图日期、项目节点日期、采用的日期来源、整图预测与设置截止。graph 给出每个节点的直接入线和出线、分支、汇合以及尚未登记完成的前置线。workTasks 只展示网站返回且属于本图的工作行。记录版本过期时不提供可执行的行级授权。查询反映当前可见数据；关联和写入需以重新预览时的服务器权限为准。

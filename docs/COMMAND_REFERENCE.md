@@ -1385,6 +1385,347 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
 }
 ```
 
+## records.projectPage
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "page": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "q": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "coverage": {
+      "type": "string"
+    },
+    "assistantRole": {
+      "type": "string"
+    },
+    "assistantName": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.taskPage
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "page": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "q": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "coverage": {
+      "type": "string"
+    },
+    "assistantRole": {
+      "type": "string"
+    },
+    "assistantName": {
+      "type": "string"
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.planPage
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "page": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "q": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "coverage": {
+      "type": "string"
+    },
+    "assistantRole": {
+      "type": "string"
+    },
+    "assistantName": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.workPage
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "page": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "q": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "coverage": {
+      "type": "string"
+    },
+    "assistantRole": {
+      "type": "string"
+    },
+    "assistantName": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.summary
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "field": {
+      "enum": [
+        "created",
+        "updated",
+        "completed"
+      ]
+    },
+    "month": {
+      "type": "string"
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.listSummary
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.overdue
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "month": {
+      "type": "string"
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.claims
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": [
+        "JH",
+        "SJ"
+      ]
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
+```
+
+## records.availableNumbers
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": [
+        "JH",
+        "SJ"
+      ]
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "additionalProperties": false
+}
+```
+
+## records.projectNodes
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "projectId"
+  ],
+  "additionalProperties": false
+}
+```
+
+## records.claimNumber
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": [
+        "JH",
+        "SJ"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "kind",
+    "title"
+  ],
+  "additionalProperties": false
+}
+```
+
+## records.linkNode
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "planId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nodeId": {
+      "type": "string"
+    },
+    "before": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "taskId",
+    "planId",
+    "nodeId",
+    "before"
+  ],
+  "additionalProperties": false
+}
+```
+
 ## records.submit
 
 ```json
@@ -1428,6 +1769,15 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
             "shortName": {
               "type": "string",
               "minLength": 1
+            },
+            "customerGroupName": {
+              "type": "string"
+            },
+            "internalGroupName": {
+              "type": "string"
+            },
+            "projectGroupName": {
+              "type": "string"
             },
             "owner": {
               "type": "string",
@@ -1563,6 +1913,15 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
             "shortName": {
               "type": "string",
               "minLength": 1
+            },
+            "customerGroupName": {
+              "type": "string"
+            },
+            "internalGroupName": {
+              "type": "string"
+            },
+            "projectGroupName": {
+              "type": "string"
             },
             "owner": {
               "type": "string",
@@ -1757,6 +2116,17 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
     "toNodeId",
     "actualCompleteDate"
   ],
+  "additionalProperties": false
+}
+```
+
+## graph.relations
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
   "additionalProperties": false
 }
 ```

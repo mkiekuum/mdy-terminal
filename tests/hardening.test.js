@@ -32,7 +32,7 @@ test('备份存储失败阻止写入',async()=>{
  await assert.rejects(api.run({id:'a',op:'plan.update',target:{id:'T'},params:{set:{title:'N'}}},envelope([],{execution:{backup:true}})),/QUOTA/);assert.equal(writes,0);
 });
 test('项目分配必须回读计划对应项目字段，不以POST成功判定',async()=>{
- let assigned=false;const api=new ApiAdapter(async(p,m)=>{if(p==='/api/session')return {actor:'TEST'};if(m==='POST')return {};if(p==='/api/plans')return [{id:'P',projectGroupId:assigned?'G':'OTHER'}];return [];});
+ let assigned=false;const api=new ApiAdapter(async(p,m)=>{if(p==='/api/session')return {actor:'TEST'};if(m==='POST')return {};if(p==='/api/plans')return [{id:'P',planOwner:'TEST',projectGroupId:assigned?'G':'OTHER'}];return [];});
  const step={id:'a',op:'project.assignPlan',params:{planId:'P',groupId:'G'}};
  await assert.rejects(api.run(step,envelope([])),{code:'SERVER_NOT_CONFIRMED'});
  assigned=true;assert.equal((await api.run(step,envelope([]))).serverVerified,true);
