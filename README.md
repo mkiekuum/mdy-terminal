@@ -1,4 +1,4 @@
-# MDY Terminal v4.6.0
+# MDY Terminal v5.0.0
 
 **5.0.0 安装**：浏览器加载 chrome.zip。MCP 从 [Releases](https://github.com/mkiekuum/mdy-terminal/releases/latest) 另选与系统、处理器匹配的便携包，内置 Node.js。详见[本机启动、端口与配对](mcp/README.md)。
 

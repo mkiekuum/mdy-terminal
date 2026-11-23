@@ -5,6 +5,7 @@ MDY Terminal v5.0.0
 4. 删除/恢复先核对差异；结果未知点“检查原请求”，不要重复写入。
 5. 原目录覆盖更新后，在扩展管理页重新加载；没有自动安装保证。
 可选本机 MCP 见源码包 mcp/README.md，无需公网。无旧业务 CLI、Native Messaging、本地问卷或 AI API 设置。最近十批历史仅在原浏览器保存。
+没有 Node.js 时，从同版 Release 下载与你的操作系统和处理器匹配的便携包，解压并启动。在扩展设置中导入启动器显示的 connection.json。
 正式安装说明：https://github.com/mkiekuum/mdy-terminal/releases/latest
 
 外部图纸：请向 AI 明确允许修改的范围。原分类节点与辅助点不同；不要为适配网站擅自改依赖。仅预览的 JSON 不会保存；图形一致不代表计算准确。
