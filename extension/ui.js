@@ -1,6 +1,6 @@
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
-import {setupAutoPairing} from './ui-pairing.js';
+import {authorizePairing,setupAutoPairing} from './ui-pairing.js';
 import {flowFeedback} from './flow-check.js';
 import {projectGroupMode} from './prompt-context.js';
 import {businessDiff} from './history.js';
@@ -95,10 +95,11 @@ refresh().catch(e=>{$('connection').textContent='暂未连接';document.querySel
 
 async function copyMcp(create=false) {
  const text = $('request').value, selected = tabId();
- const {mcpConnection,mcpPairingPending,mcpBridgeStatus}=await chrome.storage.local.get(['mcpConnection','mcpPairingPending','mcpBridgeStatus']);
+ const pairing=await authorizePairing(chrome,{port:$('pairPort').value?Number($('pairPort').value):undefined});
+ const {mcpConnection,mcpBridgeStatus}=await chrome.storage.local.get(['mcpConnection','mcpBridgeStatus']);
  const context = create?{complete:false,plan:null,warnings:['独立建图：没有选择或继承任何既有计划。']}:await readContext(projectGroupMode(text));
  if (selected !== tabId() || text !== $('request').value) throw Error('需求或目标变化，请重新复制');
- const offer=mcpPairingPending?.expires>Date.now()?mcpPairingPending:null;
+ const offer=pairing.pending;
  await clipboard((offer?'MDY-PAIRING-OFFER: '+offer.id+'\n':'')+mcpPrompt(buildPrompt(text,context,create?undefined:selected,create?{intent:'create'}:undefined)));
  const connected=mcpConnection?.enabled&&mcpBridgeStatus?.state==='connected'&&Date.now()-mcpBridgeStatus.at<90000;
  message(offer?'已复制提示词及一次性配对编号。':connected?'已复制'+(create?'新建计划图':'MCP')+'提示词，复用现有连接。':'已复制提示词。本机尚未连通时，请到设置选择“连接本机服务”。');
