@@ -6,7 +6,15 @@ import {fileURLToPath} from 'node:url';
 
 const root = fileURLToPath(new URL('../extension/', import.meta.url));
 function previewBrowser(version) {
-  const settings = {};
+  const settings = {mcpConnection:{url:'http://127.0.0.1:62924',enabled:true,token:'fixture-only',bridgeId:'synthetic-browser'}};
+  // Exercise the actual popup without sending anything to a local relay or the OS clipboard.
+  const request=window.fetch.bind(window);
+  window.fetch=(url,options)=>String(url).startsWith('http://127.0.0.1:62924/pairing/')
+    ? Promise.resolve(Response.json({protocol:'xutu-pairing/v1',relayVersion:'4.7.0'})) : request(url,options);
+  Object.defineProperty(navigator,'clipboard',{value:{write:async([item])=>{
+    const text=await (await item.getType('text/plain')).text();
+    if(!/新建独立计划|修改已有计划/.test(text)||!text.includes('VERSION_MISMATCH'))throw Error('合成复制内容缺失计划意图或诊断');
+  }}});
   let loginEnabled = false;
   const listeners = new Set();
   async function sendMessage(message) {
@@ -45,7 +53,7 @@ function previewBrowser(version) {
       onChanged: {addListener: listener => listeners.add(listener)}
     },
     scripting: {executeScript: async () => []},
-    permissions: {request: async () => false}
+    permissions: {request: async () => true}
   };
 }
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8'));

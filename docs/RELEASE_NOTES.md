@@ -1,4 +1,4 @@
-# MDY Terminal 5.2.0
+# MDY Terminal 5.3.0
 
 新建计划图不必先打开旧计划，也不必重复配对。在扩展首页点「MCP新建计划」，把需求交给已连接的本机 Agent，核对标题、编号、负责人、日期、节点、连线、工期，再确认本次创建。扩展只保存并回读，不自动送审。已保存、待审核、审核通过是不同的网站状态。
 
@@ -8,21 +8,21 @@
 
 任务关联支持多节点及关键节点。任务负责人直接保存，代设申请待负责人审核，批准前保留原关联。首页顶部显示 MCP 状态和复制 DOM，设置仅保留界面及记住密码。
 
-首次点击时即登记剪贴板写入，配对和读取完成后填入内容。旧服务不兼容时复制本机升级指令。业务调用前核验 GitHub 最新正式版，网络无法核实时暂停业务调用，保留诊断及回执查询。批量修复历史连线时先在内存应用全部边更新，再校验整图并一次保存。
+首次点击时即登记剪贴板写入，配对和读取完成后填入内容。旧服务不兼容时仍复制完整计划意图，附升级诊断。偏好保存成功后，即使已有标签无法立即应用，也会准确显示已保存。业务规则分别查证草稿、审核申请和任务登记。业务调用前核验 GitHub 最新正式版，网络无法核实时暂停业务调用，保留诊断及回执查询。批量修复历史连线时先在内存应用全部边更新，再校验整图并一次保存。
 
 ## 下载
 
 | 用途 | 文件 |
 |---|---|
-| 浏览器扩展 | [chrome.zip](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-chrome.zip) |
-| Windows MCP | [x64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-win-x64.zip) · [ARM64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-win-arm64.zip) |
-| macOS MCP | [Intel](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-darwin-x64.zip) · [Apple 芯片](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-darwin-arm64.zip) |
-| Linux MCP | [x64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-linux-x64.zip) · [ARM64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-linux-arm64.zip) |
-| 源码及校验 | [source.zip](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/mdy-terminal-v5.2.0-source.zip) · [SHA256SUMS](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.2.0/SHA256SUMS) |
+| 浏览器扩展 | [chrome.zip](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-chrome.zip) |
+| Windows MCP | [x64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-win-x64.zip) · [ARM64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-win-arm64.zip) |
+| macOS MCP | [Intel](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-darwin-x64.zip) · [Apple 芯片](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-darwin-arm64.zip) |
+| Linux MCP | [x64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-linux-x64.zip) · [ARM64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-linux-arm64.zip) |
+| 源码及校验 | [source.zip](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/mdy-terminal-v5.3.0-source.zip) · [SHA256SUMS](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.3.0/SHA256SUMS) |
 
 **只用扩展：**解压 chrome.zip，在 `chrome://extensions` 打开开发者模式，选择「加载已解压的扩展程序」，指向直接含 `manifest.json` 的目录。登录计划站后，从首页选择 MCP修改计划或 MCP新建计划。
 
-**用 MCP：**另解压匹配系统和处理器的包，运行 Windows 的 `Start-MCP.cmd` 或 macOS/Linux 的 `Start-MCP.command`（也可用 `sh Start-MCP.command`）。包内含固定校验的 Node.js 22.23.5 和许可证。首次或恢复配对按前述步骤；详见 [MCP 手册](https://github.com/mkiekuum/mdy-terminal/blob/v5.2.0/mcp/README.md)。
+**用 MCP：**另解压匹配系统和处理器的包，运行 Windows 的 `Start-MCP.cmd` 或 macOS/Linux 的 `Start-MCP.command`（也可用 `sh Start-MCP.command`）。包内含固定校验的 Node.js 22.23.5 和许可证。首次或恢复配对按前述步骤；详见 [MCP 手册](https://github.com/mkiekuum/mdy-terminal/blob/v5.3.0/mcp/README.md)。
 
 **升级：**先确认没有未知或在途写入，校验新 ZIP，备份后更新原扩展目录的受管理文件，在扩展管理页重新加载。停止旧中继前先确认它是当前实例，然后从新便携包启动，保留本机原配对配置。如果两端版本不一致，先核对实际运行版本。如果状态已连接，无需再点配对；让 Agent 用 `xutu_status` 后执行一次只读回读。
 

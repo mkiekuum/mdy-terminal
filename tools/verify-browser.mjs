@@ -86,7 +86,7 @@ try{
   const expanded=!$('loginSettings').hidden&&$('editLogin').getAttribute('aria-expanded')==='true';
   $('loginAccount').value='synthetic-user';
   $('loginPassword').value='synthetic-password';
-  await $('rememberLogin').onclick();
+  await $('loginSettings').onsubmit(new Event('submit',{cancelable:true}));
   const saved=$('loginSettings').hidden&&$('loginPassword').value===''&&$('message').textContent.includes('已启用');
   await $('editLogin').onclick();
   const privateOnReopen=$('loginAccount').value==='synthetic-user'&&$('loginPassword').value==='';

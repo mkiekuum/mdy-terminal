@@ -1,6 +1,6 @@
-# MDY Terminal v5.2.0
+# MDY Terminal v5.3.0
 
-**5.2.0 安装**：浏览器加载 chrome.zip。MCP 从 [Releases](https://github.com/mkiekuum/mdy-terminal/releases/latest) 另选与系统、处理器匹配的便携包，内置 Node.js。详见[本机启动、端口与配对](mcp/README.md)。
+**5.3.0 安装**：浏览器加载 chrome.zip。MCP 从 [Releases](https://github.com/mkiekuum/mdy-terminal/releases/latest) 另选与系统、处理器匹配的便携包，内置 Node.js。详见[本机启动、端口与配对](mcp/README.md)。
 
 打开 MDY 计划，点「MCP修改计划」，在聊天中说明需求。AI 会核对本次目标、预览修改并在确认后执行。终端会自动识别当前 MDY 页。有多个候选时，切到要处理的计划即可。
 

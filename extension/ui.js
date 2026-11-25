@@ -18,21 +18,25 @@ async function busy(id,action){$(id).disabled=true;try{await action();}catch(e){
 if(chrome.extension?.getViews({type:'popup'}).includes(window))document.documentElement.classList.add('popup');
 
 async function preparePlanCopy(create){
- let pairing;
+ let pairing={},diagnostic='';
  try{pairing=await authorizePairing(chrome);}
  catch(error){
-  if(!['VERSION_MISMATCH','PORT_OCCUPIED_OR_OLD_RELAY','RELAY_UNREACHABLE','MULTIPLE_INSTANCES','DIFFERENT_INSTANCE'].includes(error.code))throw error;
-  return {text:'请先检查官方最新正式版 https://github.com/mkiekuum/mdy-terminal/releases/latest ，核实本机扩展、MCP 客户端和中继版本，复用当前配对并完成升级重连。保留其他 MCP 实例。诊断：'+error.code+'。连接后继续'+(create?'新建':'修改')+'计划，具体内容在聊天中确认。',notice:'已复制连接修复指令，请交给本机 Agent。'};
+  if(!['VERSION_MISMATCH','PORT_OCCUPIED_OR_OLD_RELAY','RELAY_UNREACHABLE','MULTIPLE_INSTANCES','DIFFERENT_INSTANCE','ANOTHER_BROWSER_CONNECTED'].includes(error.code))throw error;
+  diagnostic=error.code;
  }
  const selected=create?undefined:await currentTab();
  let context=null;
  if(selected){
-  const response=await send({kind:'run',command:{protocol:'xutu.command/v1',requestId:crypto.randomUUID(),tabId:selected,steps:[{id:'context',op:'site.context',params:{projectGroups:'selected'}}]}});
-  context=response.steps[0].data;
+  try{
+   const response=await send({kind:'run',command:{protocol:'xutu.command/v1',requestId:crypto.randomUUID(),tabId:selected,steps:[{id:'context',op:'site.context',params:{projectGroups:'selected'}}]}});
+   context=response.steps[0].data;
+  }catch{context={complete:false,warnings:['尚未取得当前计划，连接后须按稳定 ID 核对目标。']};}
   if(await currentTab()!==selected)throw Error('目标网页已变化，请重新选择修改计划。');
  }
  const prompt=buildPrompt(create?'新建独立计划，具体需求在聊天中确认。':'修改已有计划，具体变更在聊天中确认。',context,selected,create?{intent:'create'}:undefined);
- return {text:(pairing.pending?'MDY-PAIRING-OFFER: '+pairing.pending.id+'\n':'')+mcpPrompt(prompt),notice:pairing.pending?'已复制，等待本机 Agent 完成配对。':'已复制到剪贴板。'};
+ const rules='已有项目沿用正式业务编号。模板裁图按直接连线核对并行和汇合，节点负责人与连线执行人分别确认。保存草稿、提交审核、群内提报、工作机登记分别查证，预览不能当作提交回执。代设任务关联节点按网站权限提交给任务负责人审核，批准前保留原关联。';
+ const recovery=diagnostic?'连接诊断 '+diagnostic+'：先核对官方最新正式版与本机三端，保留原配对和其他服务，连通后回读目标再操作。':'';
+ return {text:(pairing.pending?'MDY-PAIRING-OFFER: '+pairing.pending.id+'\n':'')+mcpPrompt(prompt)+'\n'+rules+'\n'+recovery,notice:diagnostic?'已复制计划指令，附连接诊断。':pairing.pending?'已复制，等待本机 Agent 完成配对。':'已复制到剪贴板。'};
 }
 async function copyPlan(create){
  const prepared=preparePlanCopy(create);
@@ -67,12 +71,15 @@ async function refreshStatus(){
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local')refreshStatus();});
 refreshStatus();
 setInterval(refreshStatus,30000);
-setupToolPanels(document,panel=>{closeLogin();if(panel)loadLoginStatus(false).catch(e=>message(e.message,true));});
+setupToolPanels(document,panel=>{closeLogin();message('');if(panel)loadLoginStatus(false).catch(e=>message(e.message,true));});
 $('hideSidebar').onchange=async()=>{
  try{
   await chrome.storage.local.set({hideSidebar:$('hideSidebar').checked});
-  for(const tab of await send({kind:'tabs'}))await chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidebar-loader.js']});
-  message('旧计划栏设置已保存。');
+  try{
+   const tabs=await send({kind:'tabs'});
+   await Promise.all(tabs.map(tab=>chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidebar-loader.js']})));
+   message('旧计划栏设置已保存。');
+  }catch{message('设置已保存，刷新计划页后生效。');}
  }catch(error){message(error.message,true);}
 };
 function displayLogin(info) {
@@ -105,5 +112,6 @@ $('editLogin').onclick = () => busy('editLogin', async () => {
  if ($('loginSettings').hidden) await loadLoginStatus(true);
  else closeLogin();
 });
-$('rememberLogin').onclick=()=>busy('rememberLogin',async()=>{const account=$('loginAccount').value,password=$('loginPassword').value;$('loginPassword').value='';const result=await send({kind:'loginSave',tabId:tabId(),account,password});if(result.status==='failed')throw Error(result.message);displayLogin(result);closeLogin();message('MDY 自动登录已启用。');});
+async function saveLogin(){const account=$('loginAccount').value,password=$('loginPassword').value;const result=await send({kind:'loginSave',account,password});displayLogin(result);closeLogin();message('MDY 自动登录已启用。');}
+$('loginSettings').onsubmit=event=>{event.preventDefault();return busy('rememberLogin',saveLogin);};
 $('forgetLogin').onclick=()=>busy('forgetLogin',async()=>{const result=await send({kind:'loginClear'});if(result.status==='failed')throw Error(result.message);displayLogin(result);});

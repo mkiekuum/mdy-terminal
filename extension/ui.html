@@ -17,12 +17,12 @@
       <span>记住密码 <small id="loginState"></small></span>
       <button id="editLogin" type="button" aria-expanded="false" aria-controls="loginSettings">设置</button>
     </div>
-    <div id="loginSettings" class="login-fields" hidden>
+    <form id="loginSettings" class="login-fields" hidden>
       <label for="loginAccount">账号</label><input id="loginAccount" type="text" autocomplete="off" maxlength="100">
       <label for="loginPassword">密码</label><input id="loginPassword" type="password" autocomplete="new-password" maxlength="300">
-      <div class="actions"><button id="rememberLogin" class="primary">保存</button><button id="forgetLogin">清除</button></div>
+      <div class="actions"><button type="submit" id="rememberLogin" class="primary">保存</button><button type="button" id="forgetLogin">清除</button></div>
       <p id="loginStatus" class="hint" role="status"></p>
-    </div>
+    </form>
     <div class="setting-row"><label for="hideSidebar">隐藏旧计划栏</label><input id="hideSidebar" type="checkbox"></div>
   </section>
 </main>

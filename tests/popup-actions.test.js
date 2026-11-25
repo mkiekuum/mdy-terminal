@@ -37,5 +37,7 @@ test('popup buttons produce distinct MCP prompts; creation reads no business pla
  await document.querySelector('#copyMcpPrompt').onclick();
  assert.equal(reserved,3);
  assert.match(writes[2],/VERSION_MISMATCH/);
+ assert.match(writes[2],/修改已有计划/);
+ assert.match(writes[2],/工作机登记/);
  assert.doesNotMatch(writes[2],/Authorization: Bearer/);
 });

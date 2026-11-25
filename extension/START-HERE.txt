@@ -1,4 +1,4 @@
-MDY Terminal v5.2.0
+MDY Terminal v5.3.0
 1. 解压 chrome.zip 到固定文件夹，里面应直接有 manifest.json。
 2. Chrome 打开 chrome://extensions，开启开发者模式，加载已解压的扩展程序。
 3. 登录MDY 计划站；独立建图点「MCP新建计划」，无需选旧计划。核对新图预览后确认一次，保存不会自动送审。
