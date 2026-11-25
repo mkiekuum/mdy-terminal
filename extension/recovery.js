@@ -42,6 +42,7 @@ export function mergeRecovery(base,wanted,latest,{acceptConflicts=false}={}){
 
 export function verifySaved(expected,actual,{strictLayout=false}={}){
  const fields=['title','planOwner','planNumber','start','deadline','nodes','edges','baseline'];
+ if(Object.hasOwn(expected,'priority'))fields.push('priority');
  // The plan API adds visualIgnore:false to edges when the submitted option is absent.
  // This exact default has no business effect; true, unknown values and all other fields remain strict.
  let defaultedEdges=0;

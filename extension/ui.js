@@ -1,6 +1,6 @@
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
-import {authorizePairing,setupAutoPairing} from './ui-pairing.js';
+import {setupAutoPairing} from './ui-pairing.js';
 import {flowFeedback} from './flow-check.js';
 import {projectGroupMode} from './prompt-context.js';
 import {businessDiff} from './history.js';
@@ -66,7 +66,7 @@ function mergeWarnings(result) {
   '重复连线 ' + edge.from + ' → ' + edge.to + '，已有间接路径 ' + edge.alternatePath.join(' → ') + '。' + edge.message
  )).join('\n');
 }
-function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';message([summarize(result),mergeWarnings(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
+function showResult(result,command){lastResult=result;if(command)lastCommand=command;$('output').textContent=JSON.stringify(result,null,2);$('resultDetails').hidden=false;$('recoveryActions').hidden=result.status==='success';message([summarize(result),...(result.steps||[]).map(step=>step.websiteState?.label),mergeWarnings(result),flowFeedback(result)].filter(Boolean).join('\n'),result.status!=='success');if(result.status!=='success')$('resultDetails').open=true;}
 async function execute(command){let result;try{result=await send({kind:'run',command});}catch{result={requestId:command.requestId,status:'failed',code:'TIMEOUT_RESULT_UNKNOWN',message:'连接中断，执行结果尚未确认。请只读核对，不要重新提交。'};}showResult(result,command);if(result.code==='HISTORY_SNAPSHOT_INCOMPLETE'||result.steps?.some(x=>x.code==='HISTORY_SNAPSHOT_INCOMPLETE'))await historyUI.inspectPending();}
 function highImpact(command){return command.steps.some(s=>['plan.delete','plan.archive','plan.replace','plan.restore','plan.restoreSnapshot','history.restore'].includes(s.op)||s.op==='task.merge'||s.op==='node.remove'||s.op==='edge.remove'||s.op==='plan.batch'&&s.params.changes.some(c=>['task.merge','node.remove','edge.remove'].includes(c.op)));}
 $('execute').onclick=()=>busy('execute',async()=>{
@@ -93,18 +93,18 @@ const historyUI=setupHistory(helpers);setupExport(helpers);
 window.addEventListener('unhandledrejection',event=>message(event.reason?.message||'连接异常，请重新打开插件。',true));
 refresh().catch(e=>{$('connection').textContent='暂未连接';document.querySelector('.connection-strip').dataset.state='error';message(e.message,true);});
 
-$('copyMcpPrompt').onclick = () => busy('copyMcpPrompt', async () => {
+async function copyMcp(create=false) {
  const text = $('request').value, selected = tabId();
- let pairing;
- if (selected) {
-  pairing = await authorizePairing(chrome,tabId);
- }
- const context = await readContext(projectGroupMode(text));
+ const {mcpConnection,mcpPairingPending,mcpBridgeStatus}=await chrome.storage.local.get(['mcpConnection','mcpPairingPending','mcpBridgeStatus']);
+ const context = create?{complete:false,plan:null,warnings:['独立建图：没有选择或继承任何既有计划。']}:await readContext(projectGroupMode(text));
  if (selected !== tabId() || text !== $('request').value) throw Error('需求或目标变化，请重新复制');
- const offer=pairing?.pending;
- await clipboard((offer?'MDY-PAIRING-OFFER: '+offer.id+'\n':'')+mcpPrompt(buildPrompt(text, context, selected)));
- message(offer?(offer.mismatch?'检测到配对不一致，等待本机 Agent 核准恢复。':'等待本机 Agent 核准连接。'):selected?'已复制 MCP 提示词，复用现有配对。':'已复制提示词。打开 MDY 页后可配对。');
-});
+ const offer=mcpPairingPending?.expires>Date.now()?mcpPairingPending:null;
+ await clipboard((offer?'MDY-PAIRING-OFFER: '+offer.id+'\n':'')+mcpPrompt(buildPrompt(text,context,create?undefined:selected,create?{intent:'create'}:undefined)));
+ const connected=mcpConnection?.enabled&&mcpBridgeStatus?.state==='connected'&&Date.now()-mcpBridgeStatus.at<90000;
+ message(offer?'已复制提示词及一次性配对编号。':connected?'已复制'+(create?'新建计划图':'MCP')+'提示词，复用现有连接。':'已复制提示词。本机尚未连通时，请到设置选择“连接本机服务”。');
+}
+$('copyMcpPrompt').onclick = () => busy('copyMcpPrompt',()=>copyMcp());
+$('newPlanPrompt').onclick = () => busy('newPlanPrompt',()=>copyMcp(true));
 async function refreshMcpSettings() {
  const {mcpConnection, mcpBridgeStatus, mcpPairingPending, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'mcpPairingPending', 'hideSidebar']);
  $('hideSidebar').checked = !!hideSidebar;
@@ -115,8 +115,8 @@ async function refreshMcpSettings() {
   label = state === 'connected' && recent ? 'MCP 已连接' : state === 'error' ? 'MCP 连接失败' : 'MCP 等待连接';
  }
  $('mcpState').textContent = mcpPairingPending ? '等待本机 Agent 核准' : label;
- $('mcpState').title = mcpBridgeStatus?.message || '';
- $('disconnectMcp').hidden = !mcpConnection;
+ $('mcpDetail').textContent = mcpPairingPending?'配对编号两分钟内有效。连接不会授权网站写入。':mcpBridgeStatus?.message||'';
+ $('disconnectMcp').hidden = !mcpConnection&&!mcpPairingPending;
 }
 refreshMcpSettings();
 $('hideSidebar').onchange=async()=>{
@@ -126,7 +126,7 @@ $('hideSidebar').onchange=async()=>{
   message('旧计划栏设置已保存。');
  }catch(error){message(error.message,true);}
 };
-setupAutoPairing($('allowLocalPairing'),chrome,tabId,message,clipboard);
+setupAutoPairing($('allowLocalPairing'),chrome,()=>$('pairPort').value?Number($('pairPort').value):undefined,message,clipboard);
 $('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews','mcpPairingPending']);$('mcpState').textContent='已断开，清除浏览器连接。';});
 
 chrome.storage.onChanged?.addListener((changes, area) => {

@@ -1,7 +1,7 @@
 name: Portable release checks
 on:
   push:
-    branches: ['release/v5.0.0','release/v5.1.0']
+    branches: ['release/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,3 +31,4 @@ jobs:
         with:
           name: portable-${{ matrix.os }}
           path: dist/mdy-terminal-v*-*.zip
+          if-no-files-found: error

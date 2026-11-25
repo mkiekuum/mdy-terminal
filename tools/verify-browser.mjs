@@ -118,15 +118,25 @@ try{
    await document.getElementById(id).onclick();
    const text=document.getElementById('manualCopyText').value;
    if(!text.includes('尚未填写需求')||!text.includes('最近一组未回答选项'))return false;
-   if(text.includes('Authorization: Bearer')!==(id==='copyMcpPrompt'))return false;
+   if(text.includes('Authorization: Bearer'))return false;
   }
   return true;
  })()`);
  assert(emptyPrompts);
+ const createPrompt=await evaluate(`(async()=>{
+  const $=id=>document.getElementById(id);
+  chrome.permissions.request=async()=>{throw Error('creating a plan must not request pairing again')};
+  await chrome.storage.local.set({mcpConnection:{enabled:true,token:'random-synthetic-only'},mcpBridgeStatus:{state:'connected',at:Date.now()}});
+  $('request').value='设计一个合成验收计划';
+  const calls=qaSite.calls.length;
+  await $('newPlanPrompt').onclick();
+  const text=$('manualCopyText').value;
+  return !document.querySelector('input[type=file]')&&qaSite.calls.length===calls&&text.includes('明确选择【新建】')&&text.includes('设计一个合成验收计划')&&!text.includes('random-synthetic-only');
+ })()`);assert(createPrompt,'dedicated create prompt reuses pairing and does not read or require an existing plan');
  const questions=await evaluate(`({count:document.querySelectorAll('#intakeQuestions fieldset').length,hidden:!!document.querySelector('#intakePanel'),message:document.querySelector('#message').textContent})`);assert.equal(questions.count,0);assert.equal(questions.hidden,false);
  const promptScope=await evaluate(`(async()=>{const before=qaSite.calls.filter(c=>c.path==='/api/project-groups').length;document.querySelector('#request').value='新建并分配到项目组';await document.querySelector('#copyPrompt').onclick();return {unrelatedGroupReads:before,groupReads:qaSite.calls.filter(c=>c.path==='/api/project-groups').length,hasRequestedGroups:document.querySelector('#manualCopyText').value.includes('Synthetic group')};})()`);
  assert.equal(promptScope.groupReads-promptScope.unrelatedGroupReads,1);assert.equal(promptScope.hasRequestedGroups,true,JSON.stringify(promptScope));
- const mcpCopy=await evaluate(`(async()=>{const c={url:'http://127.0.0.1:62924',clientToken:'SYNTHETIC_CLIENT_TOKEN'.repeat(3),token:'SYNTHETIC_BRIDGE_TOKEN'.repeat(3),bridgeId:'synthetic-browser',tabId:123,enabled:true};await chrome.storage.local.set({mcpConnection:c});await document.querySelector('#copyMcpPrompt').onclick();const text=document.querySelector('#manualCopyText').value;const result={client:text.includes(c.clientToken),setupBridge:text.includes(c.token),need:text.includes(document.querySelector('#request').value)};await document.querySelector('#copyPrompt').onclick();result.ordinaryNoKey=!document.querySelector('#manualCopyText').value.includes(c.clientToken);return result;})()`);assert(mcpCopy.client&&mcpCopy.setupBridge&&mcpCopy.need&&mcpCopy.ordinaryNoKey);
+ const mcpCopy=await evaluate(`(async()=>{const c={url:'http://127.0.0.1:62924',clientToken:'SYNTHETIC_CLIENT_TOKEN'.repeat(3),token:'SYNTHETIC_BRIDGE_TOKEN'.repeat(3),bridgeId:'synthetic-browser',tabId:123,enabled:true};await chrome.storage.local.set({mcpConnection:c});await document.querySelector('#copyMcpPrompt').onclick();const text=document.querySelector('#manualCopyText').value;const result={noKey:!text.includes(c.clientToken)&&!text.includes(c.token),need:text.includes(document.querySelector('#request').value)};await document.querySelector('#copyPrompt').onclick();result.ordinaryNoKey=!document.querySelector('#manualCopyText').value.includes(c.clientToken);return result;})()`);assert(mcpCopy.noKey&&mcpCopy.need&&mcpCopy.ordinaryNoKey);
  const execution=await evaluate(`(async()=>{const c={protocol:'xutu.command/v1',requestId:'synthetic-batch-ui',steps:[{id:'a',op:'node.batchUpdate',target:{id:'P',version:1},params:{updates:[{id:'1',set:{name:'确认名称'}}]}},{id:'b',op:'plan.update',target:{id:'P',versionFrom:'a'},dependsOn:['a'],params:{set:{title:'Synthetic batch'}}}]};document.querySelector('#editor').value=JSON.stringify(c);await document.querySelector('#execute').onclick();return {message:document.querySelector('#message').textContent,summary:document.querySelector('#changeSummary').textContent,result:JSON.parse(document.querySelector('#output').textContent).status,posts:window.qaSite.calls.filter(c=>c.method==='POST').length,revision:window.qaSite.records.get('P').revision};})()`);
  assert.equal(execution.result,'success');assert.equal(execution.posts,1);assert.equal(execution.revision,2);assert(execution.message.includes('已回读确认'));assert(execution.summary.includes('一次提交'));
  const mergeUI=await evaluate(`(async()=>{

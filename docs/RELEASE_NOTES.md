@@ -1,9 +1,25 @@
-# MDY Terminal 5.0.0
+# MDY Terminal 5.1.0
 
-浏览器扩展使用 `mdy-terminal-v5.0.0-chrome.zip`。本机 MCP 另选与操作系统和处理器匹配的便携包。Windows、macOS、Linux 各提供 x64 和 ARM64 版本。便携包内含经过固定 SHA-256 核对的 Node.js 22.23.5 运行时及许可文件。解压后运行 Windows 的 Start-MCP.cmd 或 macOS/Linux 的 Start-MCP.command。在 Linux/macOS 也可以从终端运行 `sh Start-MCP.command`。
+新建计划图不必先打开旧计划，也不必重复配对。在扩展首页点「新建计划图（复制给 MCP AI）」，把需求交给已连接的本机 Agent，核对标题、编号、负责人、日期、节点、连线、工期，再确认本次创建。扩展只保存并回读，不自动送审。已保存、待审核、审核通过是不同的网站状态。
 
-首次启动时仅监听 127.0.0.1。默认端口被占用时，新配置会采用操作系统分配的端口。已配置的实例再次启动遭遇端口冲突时会保留原配置。要创建独立配对，在终端给启动器加 `--new-instance`。在浏览器扩展设置中选择「导入本机配对文件」，选启动器显示的 connection.json。该文件含本机配对密钥，仅保存在自己的设备。
+已有配对在两端升级后可复用；首次配对或遇到凭据不一致时用「设置 → 连接本机服务」。在浏览器本人许可后，把复制的一次性编号交给可信本机 Agent。不需要查找、选择、导入或发送 `connection.json`，提示词也不包含连接密钥。端口占用、其他浏览器桥在线、多个服务实例与版本不一致分别报告；程序不接管另一活动实例。
 
-客户端可将包内 runtime/node（Windows 为 runtime/node.exe）作为命令，传入 mcp/stdio.mjs 的绝对路径和 --paired。使用独立实例时给客户端设置 XUTU_PAIR_FILE 为该实例配对文件的绝对路径。每次调用都会读取该文件。HTTP 客户端使用本机配对中的 URL 加 /mcp 和 clientToken 认证。
+既有计划修改使用稳定 ID。失效标签只在目标计划和账号可核对时定位替代页；重新读取、重新预览、重新确认。账号、目标、版本、审核状态或有效期变化会使旧同意失效。结果未知时先查原 `jobId`、`requestId` 和计划回读，不重发写入。模板连线预览列出直连增删保留及执行人、工期、完成日的保留情况。
 
-5.0 支持以稳定 ID 读取分支、汇合、归属、任务节点和行级权限；各类日期保留网站来源。查询使用分页回执。创建、修改、关联等操作仍须预览及确认。浏览器扩展和本机中继都升级后再使用新契约。
+## 下载
+
+| 用途 | 文件 |
+|---|---|
+| 浏览器扩展 | [chrome.zip](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-chrome.zip) |
+| Windows MCP | [x64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-win-x64.zip) · [ARM64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-win-arm64.zip) |
+| macOS MCP | [Intel](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-darwin-x64.zip) · [Apple 芯片](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-darwin-arm64.zip) |
+| Linux MCP | [x64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-linux-x64.zip) · [ARM64](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-linux-arm64.zip) |
+| 源码及校验 | [source.zip](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/mdy-terminal-v5.1.0-source.zip) · [SHA256SUMS](https://github.com/mkiekuum/mdy-terminal/releases/download/v5.1.0/SHA256SUMS) |
+
+**只用扩展：**解压 chrome.zip，在 `chrome://extensions` 打开开发者模式，选择「加载已解压的扩展程序」，指向直接含 `manifest.json` 的目录。登录计划站即可用普通 AI 提示词和 JSON，不需要 Node.js、旧业务 CLI 或 Native Messaging。
+
+**用 MCP：**另解压匹配系统和处理器的包，运行 Windows 的 `Start-MCP.cmd` 或 macOS/Linux 的 `Start-MCP.command`（也可用 `sh Start-MCP.command`）。包内含固定校验的 Node.js 22.23.5 和许可证。首次或恢复配对按前述步骤；详见 [MCP 手册](https://github.com/mkiekuum/mdy-terminal/blob/v5.1.0/mcp/README.md)。
+
+**升级：**先确认没有未知或在途写入，校验新 ZIP，备份后更新原扩展目录的受管理文件，在扩展管理页重新加载。停止旧中继前先确认它是当前实例，然后从新便携包启动，保留本机原配对配置。如果两端版本不一致，先核对实际运行版本。如果状态已连接，无需再点配对；让 Agent 用 `xutu_status` 后执行一次只读回读。
+
+**测试边界：**自动化只用合成计划；隔离 Chromium 检查扩展界面及新建入口。真实计划站登入、真实授权弹窗由本人验收、以及真实网站写入均未实测；没有改动真实业务计划。详见 [5.1.0 验收记录](https://github.com/mkiekuum/mdy-terminal/blob/v5.1.0/docs/V5.1.0_ACCEPTANCE.md)。
