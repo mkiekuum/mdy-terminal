@@ -51,6 +51,8 @@ function setActualCompletion(plan, review, params) {
  }
 }
 
+const batchEdgePreview = Symbol('batchEdgePreview');
+
 export class ApiAdapter{
  constructor(request,options={}){this.request=request;this.options=options;}
  async resolve(t={}){if(t.id)return t.id;assert(typeof t.number==='string','target.id 或 number 必填');const items=(await this.request('/api/plans')).filter(p=>p.planNumber===t.number&&(!t.owner||p.planOwner===t.owner));if(items.length!==1)fail(items.length?'TARGET_AMBIGUOUS':'TARGET_NOT_FOUND');return items[0].id;}
@@ -154,13 +156,16 @@ export class ApiAdapter{
  if(op==='plan.batch'){
  assert(Number.isInteger(t.version),'批量修改必须提供读取依据版本');
  let virtual=clone(before);
+ // A second legacy edge may still be invalid while the first is being repaired.
+ // The outer adapter validates the complete graph before issuing the single write.
+ const validateAtEnd = p.changes.every(change=>change.op==='edge.update');
  const local=new ApiAdapter(async(endpoint,method,body)=>{
   if(endpoint==='/api/session')return session;
   if(endpoint==='/api/plans' && !method)return [{id,assistantEditable:true}]; // Outer batch already checked this plan.
   assert(endpoint===path||endpoint===path+'/import'||endpoint===path+'/change','批量操作不能访问其他目标或服务');
   if(method==='POST')virtual={...virtual,current:clone(body.current),revision:virtual.revision+1};
   return clone(virtual);
- });
+ },{[batchEdgePreview]:validateAtEnd});
  for(const [index,change] of p.changes.entries()){
   assert(batchOperations.includes(change.op),'不支持的批量子操作');
   await local.run({id:'local'+index,op:change.op,target:{id,version:virtual.revision},params:change.params},{protocol:e.protocol,requestId:e.requestId,mode:'execute'});
@@ -186,7 +191,8 @@ export class ApiAdapter{
  const mergePreview = e.mode === 'preview' && (op === 'task.merge' ||
   op === 'plan.batch' && p.changes.some(change => ['task.merge','node.remove'].includes(change.op)));
  if (mergePreview) changes.redundantEdges = transitiveEdges(current.edges);
- validatePlan(current);if(!p.flowCheck&&['plan.create','plan.batch'].includes(op))flowCheck={format:'pass',drawing:'unverified',dependencies:'unverified',duration:'unverified',business:'not_independently_verified',canSubmit:true,notice:'未附确认图纸清单：原图一致性、工作开始约束与工期映射未核实；网站保存状态单独报告。'};if(p.flowCheck)flowCheck=e.mode==='preview'?inspectFlow(p.flowCheck,current):enforceFlow(p.flowCheck,current);assert(validDate(current.start)&&validDate(current.deadline)&&current.edges.every(x=>validDate(x.completedAt||'')),'日期无效');
+ if(!this.options[batchEdgePreview])validatePlan(current);
+ if(!p.flowCheck&&['plan.create','plan.batch'].includes(op))flowCheck={format:'pass',drawing:'unverified',dependencies:'unverified',duration:'unverified',business:'not_independently_verified',canSubmit:true,notice:'未附确认图纸清单：原图一致性、工作开始约束与工期映射未核实；网站保存状态单独报告。'};if(p.flowCheck)flowCheck=e.mode==='preview'?inspectFlow(p.flowCheck,current):enforceFlow(p.flowCheck,current);assert(validDate(current.start)&&validDate(current.deadline)&&current.edges.every(x=>validDate(x.completedAt||'')),'日期无效');
  if(e.mode==='preview')return {data:{...(op==='plan.create'?{plannedTargetId:id}:{}),before:before?.current||null,after:['plan.delete','plan.archive'].includes(op)?null:current,revision:before?.revision,operation:op,rollback:'not_guaranteed',...(flowCheck?{flowCheck}:{}),changes:changes||planDiff(before?.current,current),
   validation:{localStructure:'passed',website:{actor:session.actor,permission:'checked_by_read_only_preconditions_not_server_save',write:'not_attempted',reviewStatus:before?.review?.status??null,
    notice:op==='plan.create'?'只检查当前可见计划编号；最终是否允许创建由服务器决定。仅保存新图，不提交审核。':
