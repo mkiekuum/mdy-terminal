@@ -4,7 +4,7 @@
 
 ## 便携版（推荐）
 
-从同版本 Release 下载匹配系统与架构的便携包，核对 SHA256SUMS，解压后运行根目录 `Start-MCP.cmd` 或 `Start-MCP.command`。保留整个目录。源码使用 Node 22+ 运行 `node mcp/start-local.mjs`。
+从同版本 Release 下载匹配 Windows 架构的便携包，核对 SHA256SUMS，解压后运行根目录 `Start-MCP.cmd`。保留整个目录。源码使用 Node 22+ 运行 `node mcp/start-local.mjs`。
 
 ## 首次连接或配对恢复
 
@@ -30,9 +30,13 @@ codex mcp add xutu-terminal --url http://127.0.0.1:62924/mcp --bearer-token-env-
 
 已打开的客户端可能需要退出并重新启动才能继承环境变量。不要覆盖已存在且指向其他服务的同名配置。
 
+## 聊天中提示 fetch failed
+
+先从当前聊天调用 xutu_status；5.4 起，首次状态响应附 clientVersion。按 jobId 取回执核对中继及扩展版本。若同一配对的便携客户端能读、旧聊天仍失败，核对宿主的 stdio 路径和配对绑定并重载 MCP 配置。回到原聊天再查状态并只读回读。请在后续升级沿用相同安装目录。RELAY_OFFLINE 指当前实例没有监听，CREDENTIAL_MISMATCH 指中继拒绝当前凭据，VERSION_MISMATCH 指版本不一致。结果未知时先查询原回执。
+
 ## 只支持 stdio 的客户端
 
-使用便携包内 `runtime/node`（Windows 为 `runtime/node.exe`）或本机 Node 22+，运行 `mcp/stdio.mjs --paired`。适配器读取本机实例配置，转发标准 JSON-RPC，不在 stdout 输出日志或凭据。
+使用便携包内 `runtime/node.exe`或本机 Node 22+，运行 `mcp/stdio.mjs --paired`。适配器读取本机实例配置，转发标准 JSON-RPC，不在 stdout 输出日志或凭据。
 
 ```json
 {

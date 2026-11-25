@@ -68,8 +68,6 @@ export async function replaceUnpacked({install,previous,candidate,apply=false}){
   return {...result,status:'files_replaced',backup,notice:'文件已替换，请到扩展管理页点重新加载；浏览器中的运行版本尚未核对。'};
  }catch(e){try{await fs.rmdir(backupRoot);}catch{}throw e;}finally{await fs.rm(stage,{recursive:true,force:true});}
 }
-// Node resolves symlinks for import.meta.url; macOS mktemp paths may start with
-// /var or /tmp while this module's URL uses their canonical /private path.
 const entryPath=process.argv[1]?await fs.realpath(process.argv[1]).catch(()=>null):null;
 if(entryPath&&import.meta.url===pathToFileURL(entryPath).href){
  const [install,previous,candidate,mode,extra]=process.argv.slice(2);

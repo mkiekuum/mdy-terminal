@@ -4,5 +4,5 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');const
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'extension/manifest.json')));if(manifest.version!==JSON.parse(fs.readFileSync(path.join(root,'package.json'))).version)throw Error('VERSION_MISMATCH');
 const output=path.join(dist,'mdy-terminal-v'+manifest.version+'-chrome.zip');
 if(fs.existsSync(output))fs.unlinkSync(output);
-if(process.platform==='win32'){const quote=s=>"'"+s.replaceAll("'","''")+"'";execFileSync('powershell.exe',['-NoProfile','-Command',`Add-Type -AssemblyName System.IO.Compression.FileSystem\n[System.IO.Compression.ZipFile]::CreateFromDirectory(${quote(path.join(root,'extension'))},${quote(output)})`]);}else execFileSync('zip',['-q','-r',output,'.'],{cwd:path.join(root,'extension')});
+const quote=s=>"'"+s.replaceAll("'","''")+"'";execFileSync('powershell.exe',['-NoProfile','-Command',`Add-Type -AssemblyName System.IO.Compression.FileSystem\n[System.IO.Compression.ZipFile]::CreateFromDirectory(${quote(path.join(root,'extension'))},${quote(output)})`]);
 fs.writeFileSync(path.join(dist,'SHA256SUMS'),crypto.createHash('sha256').update(fs.readFileSync(output)).digest('hex')+'  '+path.basename(output)+'\n');console.log(output);

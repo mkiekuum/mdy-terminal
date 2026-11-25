@@ -47,11 +47,11 @@ test('已修改安装、权限扩大、用户文件冲突都不会覆盖原目�
 });
 
 
-test('从 macOS 样式的目录别名运行更新入口，确实替换并回读版本',{skip:process.platform==='win32'},async t=>{
+test('Windows 目录联接支持原位更新与版本回读',async t=>{
  const {dirs}=await fixture(t),folder=path.dirname(dirs.install);
  const tools=fileURLToPath(new URL('../tools/',import.meta.url));
  const alias=path.join(folder,'tools-alias');
- await fs.symlink(tools,alias,'dir');
+ await fs.symlink(tools,alias,'junction');
  const entry=path.join(alias,'replace-unpacked.mjs'),run=promisify(execFile);
  const preview=await run(process.execPath,[entry,dirs.install,dirs.previous,dirs.candidate]);
  assert.equal(JSON.parse(preview.stdout).status,'preview');

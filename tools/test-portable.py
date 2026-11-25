@@ -14,18 +14,10 @@ with tempfile.TemporaryDirectory(prefix="MDY 配对 ") as tmp:
     with zipfile.ZipFile(sys.argv[1]) as archive:
         archive.extractall(root)
     folder = next(root.glob("mdy-terminal-*"))
-    node = folder / "runtime" / ("node.exe" if os.name == "nt" else "node")
-    node.chmod(0o755)
+    node = folder / "runtime" / "node.exe"
     home = root / "本机 config"
     env = {**os.environ, "XUTU_HOME": str(home), "PATH": ""}
-    if os.name == "nt":
-        launcher = [os.environ["COMSPEC"], "/d", "/c", "Start-MCP.cmd", "--help"]
-    else:
-        launcher = ["/bin/sh", "Start-MCP.command", "--help"]
-        utilities = root / "utilities"
-        utilities.mkdir()
-        (utilities / "dirname").symlink_to("/usr/bin/dirname")
-        env["PATH"] = str(utilities)
+    launcher = [os.environ["COMSPEC"], "/d", "/c", "Start-MCP.cmd", "--help"]
     assert b"--new-instance" in subprocess.check_output(launcher, cwd=folder, env=env, timeout=10)
     guard = socket.socket()
     try:
@@ -57,6 +49,42 @@ with tempfile.TemporaryDirectory(prefix="MDY 配对 ") as tmp:
                 capture_output=True,check=True,timeout=15)
             assert "xutu_read" in [t["name"] for t in json.loads(result.stdout)["result"]["tools"]]
             if not suffix:
+                # Keep the host stdio session open throughout an in-place upgrade.
+                version = json.loads((folder / "package.json").read_text(encoding="utf-8"))["version"]
+                client = subprocess.Popen([node, "mcp/stdio.mjs", "--paired"], cwd=folder,
+                    env={**env, "XUTU_PAIR_FILE": str(file)}, stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE, encoding="utf-8")
+                core = folder / "extension/core.js"
+                original = core.read_bytes()
+                def call(name):
+                    client.stdin.write(json.dumps({"jsonrpc":"2.0", "id":1, "method":"tools/call",
+                        "params":{"name":name,"arguments":{}}}) + "\n")
+                    client.stdin.flush()
+                    return json.loads(client.stdout.readline())
+                try:
+                    def status_version():
+                        return json.loads(call("xutu_status")["result"]["content"][0]["text"])["clientVersion"]
+                    assert status_version() == version
+                    core.write_bytes(original.replace(version.encode(), b"99.0.0", 1))
+                    assert status_version() == "99.0.0"
+                    assert "VERSION_MISMATCH" in call("xutu_read")["error"]["message"]
+                    core.write_bytes(original)
+                    assert status_version() == version
+                    saved_pair = file.read_bytes()
+                    try:
+                        file.write_text(json.dumps({**parsed, "clientToken":"x"*64}), encoding="utf-8")
+                        assert "CREDENTIAL_MISMATCH" in call("xutu_status")["error"]["message"]
+                        with socket.socket() as reserved:
+                            reserved.bind(("127.0.0.1",0))
+                            file.write_text(json.dumps({**parsed,"url":"http://127.0.0.1:"+str(reserved.getsockname()[1])}), encoding="utf-8")
+                            assert "RELAY_OFFLINE" in call("xutu_status")["error"]["message"]
+                    finally:
+                        file.write_bytes(saved_pair)
+                    assert status_version() == version
+                finally:
+                    core.write_bytes(original)
+                    client.stdin.close()
+                    client.wait(timeout=10)
                 snapshot = file.read_bytes()
                 duplicate = launch()
                 try:
