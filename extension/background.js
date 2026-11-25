@@ -46,7 +46,7 @@ async function exportCommand(tab,op,p){
 const checkUpdates=createUpdateChecker({load:async()=>(await chrome.storage.local.get('releaseCheck')).releaseCheck,save:report=>chrome.storage.local.set({releaseCheck:report})});
 async function compatibilityFor(tab){return collectCompatibility({inspect:()=>bridge(tab.id,{kind:'inspect'}),session:()=>request(tab,'/api/session'),plans:()=>request(tab,'/api/plans'),probe:async()=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:probeNativeCompatibility}))[0]?.result,userScripts:async()=>{if(!chrome.userScripts?.getScripts)return false;await chrome.userScripts.getScripts();return true;}});}
 const store={get:async k=>(await chrome.storage.local.get(k))[k],set:async(k,v)=>chrome.storage.local.set({[k]:v})};
-async function currentPlanTarget(reference){
+export async function currentPlanTarget(reference){
  const explicitTabId=typeof reference==='number'?reference:reference?.tabId;
  const requested=reference?.steps?.map(step=>step.target).find(target=>target?.id||target?.number);
  if (explicitTabId !== undefined) {
