@@ -1,9 +1,24 @@
 import http from 'node:http';import {timingSafeEqual,randomBytes,createHash} from 'node:crypto';import {pathToFileURL} from 'node:url';
 import {requestJob} from './job-queue.mjs';
 import {VERSION} from '../extension/core.js';
+import {RELEASE_PAGE,releaseFromResponse} from '../extension/updates.js';
+
+export async function requireCurrentRelease(fetcher=fetch){
+ let release;
+ try{
+  const options={method:'HEAD',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(8000)};
+  let response=await fetcher(RELEASE_PAGE,options);
+  if([405,501].includes(response.status)){
+   response=await fetcher(RELEASE_PAGE,{...options,method:'GET'});
+   await response.body?.cancel();
+  }
+  release=releaseFromResponse(response);
+ }catch{throw Error('无法确认 GitHub 最新正式版，请检查网络后重试。');}
+ if(release.version!==VERSION)throw Error('当前 MCP '+VERSION+'，GitHub 最新正式版 '+release.version+'。请升级扩展、客户端和中继后重连。');
+}
 
 const object=properties=>({type:'object',properties,additionalProperties:false});
-export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now(),pairingNonceTtlMs=120000}){
+export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now(),pairingNonceTtlMs=120000,checkRelease}){
  if(!clientToken||!bridgeToken||clientToken.length<32||bridgeToken.length<32||clientToken===bridgeToken)throw Error('需要两枚不同的至少32字符密钥');
  const jobs=new Map();let lastBridge=null,activeBridge=null,leaseAt=null,bridgeProtocol=null,extensionVersion=null;
  const another=peer=>activeBridge&&activeBridge!==peer&&now()-leaseAt<90000;
@@ -88,10 +103,14 @@ export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now
      if (!online) throw Error('浏览器桥未连接，请检查插件的 MCP 连接。');
      if (browserTool && bridgeProtocol !== '2') throw Error('请在扩展管理页重新加载新版MDY Terminal。');
     }
+    if(checkRelease&&['xutu_login','xutu_read','xutu_preview','xutu_execute'].includes(name)){
+     if(extensionVersion!==VERSION)throw Error('浏览器桥版本未核实，请重新加载同版扩展。');
+     await checkRelease();
+    }
     result=requestJob(jobs,name,a,now());
     return rpc({content:[{type:'text',text:JSON.stringify(result)}]});
    }catch(e){return rpc({isError:true,content:[{type:'text',text:e.message}]});}
   }catch{json(400,{error:'INVALID_REQUEST'});}
  });return {server,jobs};
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){const {server}=createRelay({clientToken:process.env.XUTU_MCP_TOKEN,bridgeToken:process.env.XUTU_BRIDGE_TOKEN,origins:(process.env.XUTU_ALLOWED_ORIGINS||'').split(',').filter(Boolean)});server.listen(Number(process.env.PORT||62924),'127.0.0.1',()=>console.log('MCP relay listening on loopback; no public deployment.'));}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){const {server}=createRelay({checkRelease:requireCurrentRelease,clientToken:process.env.XUTU_MCP_TOKEN,bridgeToken:process.env.XUTU_BRIDGE_TOKEN,origins:(process.env.XUTU_ALLOWED_ORIGINS||'').split(',').filter(Boolean)});server.listen(Number(process.env.PORT||62924),'127.0.0.1',()=>console.log('MCP relay listening on loopback; no public deployment.'));}

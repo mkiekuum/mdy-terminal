@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {randomBytes,randomUUID} from 'node:crypto';
-import {createRelay} from './relay.mjs';
+import {createRelay,requireCurrentRelease} from './relay.mjs';
 import {relayUrl} from '../extension/mcp-bridge.js';
 
 if(process.argv.includes('--help')){
@@ -21,7 +21,7 @@ async function start(){
   const cfg=first?{url:'http://127.0.0.1:62924',clientToken:token(),bridgeToken:token()}:
     JSON.parse(fs.readFileSync(file,'utf8'));
   const port=Number(new URL(relayUrl(cfg.url)).port || 80);
-  const {server}=createRelay({...cfg,origins:(process.env.XUTU_ALLOWED_ORIGINS||'').split(',').filter(Boolean)});
+  const {server}=createRelay({...cfg,checkRelease:requireCurrentRelease,origins:(process.env.XUTU_ALLOWED_ORIGINS||'').split(',').filter(Boolean)});
   function listen(number){
     return new Promise((resolve,reject)=>{
       const failed=error=>{server.off('listening',ready);reject(error);};

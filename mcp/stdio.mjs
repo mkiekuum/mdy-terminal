@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {relayUrl} from '../extension/mcp-bridge.js';
+import {VERSION} from '../extension/core.js';
 
 async function connection() {
   if (process.argv.includes('--paired')) {
@@ -26,6 +27,11 @@ for await(const line of readline.createInterface({input:process.stdin})){
   try{
     input=JSON.parse(line);
     const {url,token}=await connection();
+    if(input.method==='tools/call'&&['xutu_login','xutu_read','xutu_preview','xutu_execute'].includes(input.params?.name)){
+      const info=await fetch(new URL('/pairing/info',url),{redirect:'error',signal:AbortSignal.timeout(3000)});
+      const peer=info.ok?await info.json().catch(()=>null):null;
+      if(peer?.protocol!=='xutu-pairing/v1'||peer.relayVersion!==VERSION)throw Error('客户端与本机中继版本不一致。请核对正在运行的实例并升级重连。');
+    }
     const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+token,
       'Content-Type':'application/json',Accept:'application/json, text/event-stream'},
       body:line,signal:AbortSignal.timeout(20000),redirect:'error'});

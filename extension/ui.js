@@ -17,8 +17,13 @@ async function currentTab(){selectedPlanTab=(await send({kind:'currentPlanTab'})
 async function busy(id,action){$(id).disabled=true;try{await action();}catch(e){message(e.message,true);}finally{$(id).disabled=false;}}
 if(chrome.extension?.getViews({type:'popup'}).includes(window))document.documentElement.classList.add('popup');
 
-async function copyPlan(create){
- const pairing=await authorizePairing(chrome);
+async function preparePlanCopy(create){
+ let pairing;
+ try{pairing=await authorizePairing(chrome);}
+ catch(error){
+  if(!['VERSION_MISMATCH','PORT_OCCUPIED_OR_OLD_RELAY','RELAY_UNREACHABLE','MULTIPLE_INSTANCES','DIFFERENT_INSTANCE'].includes(error.code))throw error;
+  return {text:'请先检查官方最新正式版 https://github.com/mkiekuum/mdy-terminal/releases/latest ，核实本机扩展、MCP 客户端和中继版本，复用当前配对并完成升级重连。保留其他 MCP 实例。诊断：'+error.code+'。连接后继续'+(create?'新建':'修改')+'计划，具体内容在聊天中确认。',notice:'已复制连接修复指令，请交给本机 Agent。'};
+ }
  const selected=create?undefined:await currentTab();
  let context=null;
  if(selected){
@@ -27,8 +32,19 @@ async function copyPlan(create){
   if(await currentTab()!==selected)throw Error('目标网页已变化，请重新选择修改计划。');
  }
  const prompt=buildPrompt(create?'新建独立计划，具体需求在聊天中确认。':'修改已有计划，具体变更在聊天中确认。',context,selected,create?{intent:'create'}:undefined);
- await navigator.clipboard.writeText((pairing.pending?'MDY-PAIRING-OFFER: '+pairing.pending.id+'\n':'')+mcpPrompt(prompt));
- message(pairing.pending?'已复制，等待本机 Agent 完成配对。':'已复制到剪贴板。');
+ return {text:(pairing.pending?'MDY-PAIRING-OFFER: '+pairing.pending.id+'\n':'')+mcpPrompt(prompt),notice:pairing.pending?'已复制，等待本机 Agent 完成配对。':'已复制到剪贴板。'};
+}
+async function copyPlan(create){
+ const prepared=preparePlanCopy(create);
+ message('正在准备复制…');
+ if(typeof ClipboardItem==='function'&&navigator.clipboard.write){
+  // Start the clipboard operation during the click. Site reads may outlive transient activation.
+  const blob=prepared.then(({text})=>new Blob([text],{type:'text/plain'}));
+  await Promise.all([navigator.clipboard.write([new ClipboardItem({'text/plain':blob})]),blob]);
+ }else{
+  await navigator.clipboard.writeText((await prepared).text);
+ }
+ message((await prepared).notice);
 }
 $('copyMcpPrompt').onclick=()=>busy('copyMcpPrompt',()=>copyPlan(false));
 $('newPlanPrompt').onclick=()=>busy('newPlanPrompt',()=>copyPlan(true));
