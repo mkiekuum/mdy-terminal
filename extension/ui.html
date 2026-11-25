@@ -7,59 +7,14 @@
   <link rel="stylesheet" href="ui.css">
 </head>
 <body>
-<aside id="updateBanner" class="setting-row" hidden><strong id="updateAdvice"></strong><a id="installUpdate" target="_blank" rel="noopener noreferrer" hidden>下载新版 ↗</a></aside>
-<header>
-  <div class="identity">
-    <h1>MDY Terminal</h1>
-    <div class="connection-strip">
-      <span class="status-dot" aria-hidden="true"></span>
-      <span id="connection" role="status">连接中</span>
-    </div>
-  </div>
-  <button id="openSite" class="text-button">打开 MDY ↗</button>
-</header>
+<header><strong id="mcpState" role="status">正在检查 MCP 连接</strong><button id="copyDom">复制 DOM</button></header>
 <main>
-  <div class="workspace card">
-    <section class="compose-card">
-      <div class="field-heading">
-        <label id="requestLabel" for="request">需求</label>
-      </div>
-      <textarea id="request" rows="3" placeholder="跨计划、跨任务描述需求，也可留空"></textarea>
-      <div class="actions prompt-actions">
-        <button id="copyMcpPrompt" class="primary">复制给 MCP AI</button>
-        <button id="copyPrompt">复制给普通 AI</button>
-      </div>
-      <div class="actions"><button id="newPlanPrompt" type="button">新建计划图（复制给 MCP AI）</button></div>
-    </section>
-    <details class="execute-card">
-      <summary>JSON 指令</summary>
-      <textarea id="editor" aria-label="JSON 指令" rows="3" spellcheck="false" placeholder="粘贴 JSON 指令"></textarea>
-      <p id="changeSummary" class="hint" role="status"></p>
-      <div class="actions"><button id="execute" class="primary">执行指令</button></div>
-    </details>
-  </div>
-  <section id="reviewPanel" class="card" hidden>
-    <h2>核对改动</h2><p id="reviewNotice"></p><pre id="reviewDiff"></pre>
-    <div class="button-row"><button id="confirmAction" class="primary">确认处理</button><button id="cancelAction">取消</button></div>
-  </section>
+  <section class="actions card" aria-label="计划操作"><button id="copyMcpPrompt" class="primary">MCP修改计划</button><button id="newPlanPrompt">MCP新建计划</button></section>
   <p id="message" role="status"></p>
-  <div id="recoveryActions" hidden class="button-row"><button id="diagnoseRequest">检查原请求</button><button id="copyHelp">复制给 AI 求助</button></div>
-  <details id="resultDetails" hidden>
-    <summary>执行结果</summary><button id="copyResult" class="text-button">复制结果</button><pre id="output"></pre>
-  </details>
-  <nav class="tool-bar" aria-label="工具">
-    <button id="historyToggle">历史记录</button><button id="pageTools">页面复制</button><button id="moreToggle"><span id="moreLabel">设置</span></button>
-  </nav>
-  <section id="historyBody" class="card" aria-label="历史记录" hidden>
-    <div class="button-row"><button id="copyHistory">复制全部历史记录</button></div>
-  </section>
-  <section id="pageToolsPanel" class="card" aria-label="页面复制" hidden>
-    <div class="button-row"><button id="copyDom">复制 DOM</button><button id="saveOffline">下载 HTML</button></div>
-    <p id="exportStatus" class="hint" role="status"></p><pre id="exportDetails" hidden></pre>
-  </section>
+  <nav class="actions"><button id="moreToggle" aria-expanded="false" aria-controls="moreDetails">设置</button></nav>
   <section id="moreDetails" class="card settings" aria-label="设置" hidden>
     <div class="setting-row">
-      <span>MDY 自动登录 <small id="loginState"></small></span>
+      <span>记住密码 <small id="loginState"></small></span>
       <button id="editLogin" type="button" aria-expanded="false" aria-controls="loginSettings">设置</button>
     </div>
     <div id="loginSettings" class="login-fields" hidden>
@@ -69,21 +24,7 @@
       <p id="loginStatus" class="hint" role="status"></p>
     </div>
     <div class="setting-row"><label for="hideSidebar">隐藏旧计划栏</label><input id="hideSidebar" type="checkbox"></div>
-    <div class="setting-row"><button type="button" id="allowLocalPairing">连接本机服务</button></div>
-    <details><summary>指定实例（可选）</summary><label for="pairPort">启动器显示的本机端口</label><input id="pairPort" inputmode="numeric" type="number" min="1024" max="65535"></details>
-    <div class="setting-row"><span id="mcpState" role="status">MCP 未连接</span><button id="disconnectMcp">断开</button></div>
-    <p id="mcpDetail" class="hint" role="status"></p>
-    <details id="compatibilityDetails" hidden>
-      <summary>兼容性检查</summary>
-      <p id="compatibilityStatus" class="hint" role="status"></p>
-      <div class="button-row"><button id="checkCompatibility">重新检查</button><button id="copyCompatibility">复制报告</button></div>
-      <pre id="compatibilityOutput"></pre>
-    </details>
   </section>
-  <details id="manualCopy" hidden>
-    <summary>手动复制</summary><p class="hint">剪贴板不可用，请选中内容复制。</p>
-    <textarea id="manualCopyText" rows="5" readonly aria-label="待复制的内容"></textarea>
-  </details>
 </main>
 <script type="module" src="ui.js"></script>
 </body>

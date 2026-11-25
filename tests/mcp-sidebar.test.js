@@ -48,11 +48,13 @@ test('MCP 提示词不携带凭据、不要求导入文件',()=>{
  assert(!prompt.includes(clientToken));assert(!prompt.includes(bridgeToken));assert(prompt.includes('本次需求'));
  assert(prompt.includes('不要求用户导入文件'));assert(prompt.includes('不结束其他Node'));assert(prompt.includes('SHA256SUMS'));
 });
-test('精简界面保留恢复和单一页面复制区，不出现密钥输入或新手帮助',async()=>{
+test('首页只有两项计划操作，顶部显示连接与 DOM，底部仅设置',async()=>{
  const fs=await import('node:fs');const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document;
- for(const id of ['mcpUrl','mcpToken','usageHelp','mcpFile','connectMcp','undo','redo'])assert.equal(d.getElementById(id),null);
- for(const id of ['request','editor','copyPrompt','copyMcpPrompt','copyHistory','recoveryActions','copyDom','saveOffline'])assert(d.getElementById(id));
- assert(d.getElementById('compatibilityDetails').hidden);assert.equal(d.getElementById('updateNotes'),null);assert.equal(d.querySelector('#copyPage,#downloadDom,#createPlan,#managePlan'),null);assert(!d.querySelector('#editor').closest('details').open);assert(d.querySelector('#copyMcpPrompt.primary'));assert(!d.getElementById('moreDetails').contains(d.getElementById('copyDom')));dom.window.close();
+ assert(d.querySelector('header #mcpState'));assert(d.querySelector('header #copyDom'));
+ assert.deepEqual([...d.querySelectorAll('section[aria-label="计划操作"] button')].map(b=>b.textContent),['MCP修改计划','MCP新建计划']);
+ assert.deepEqual([...d.querySelectorAll('nav button')].map(b=>b.textContent),['设置']);
+ assert.equal(d.querySelector('textarea,#historyToggle,#saveOffline,#copyPrompt,#pairPort'),null);
+ dom.window.close();
 });
 
 
@@ -66,22 +68,11 @@ test('MCP 分块传输的中文不会损坏',async()=>{
 });
 
 
-test('底部工具互斥展开、重复点击收回，历史诊断可主动打开且无嵌套菜单',async()=>{
- const fs=await import('node:fs'),{setupToolPanels}=await import('../extension/ui-panels.js');const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document,panels=setupToolPanels(d);
- d.getElementById('pageTools').click();assert(!d.getElementById('pageToolsPanel').hidden);assert.equal(d.getElementById('pageTools').getAttribute('aria-expanded'),'true');
- d.getElementById('moreToggle').click();assert(d.getElementById('pageToolsPanel').hidden);assert(!d.getElementById('moreDetails').hidden);d.getElementById('moreToggle').click();assert(d.getElementById('moreDetails').hidden);
- const history=d.getElementById('historyToggle'),body=d.getElementById('historyBody');
- assert(body.hidden);
- assert.equal(body.querySelectorAll('button').length,1);
- assert(body.contains(d.getElementById('copyHistory')));
- history.click();
- assert.equal(history.getAttribute('aria-expanded'),'true');
- assert(!body.hidden);
- history.click();
- assert(body.hidden);
- history.click();
- d.getElementById('pageTools').click();
- assert(body.hidden);
- assert.equal(history.getAttribute('aria-expanded'),'false');
- panels.show('pageToolsPanel');assert(!d.getElementById('pageToolsPanel').hidden);assert.equal(d.getElementById('pageTools').getAttribute('aria-expanded'),'true');assert.equal(d.querySelectorAll('#pageToolsPanel details,#historyBody details').length,0);dom.window.close();
+test('设置可展开和收起，只保留界面及密码设置',async()=>{
+ const fs=await import('node:fs'),{setupToolPanels}=await import('../extension/ui-panels.js');
+ const dom=new JSDOM(fs.readFileSync('extension/ui.html','utf8')),d=dom.window.document;
+ setupToolPanels(d);const button=d.querySelector('#moreToggle'),panel=d.querySelector('#moreDetails');
+ button.click();assert(!panel.hidden);assert.equal(button.getAttribute('aria-expanded'),'true');
+ assert.deepEqual([...panel.querySelectorAll('input')].map(e=>e.id),['loginAccount','loginPassword','hideSidebar']);
+ button.click();assert(panel.hidden);dom.window.close();
 });

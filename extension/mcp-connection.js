@@ -20,7 +20,7 @@ export async function beginPairing({previous,fetcher=fetch,ports=pairingPorts,po
  const relays=probes.filter(p=>p?.isRelay);
  const candidates=relays.filter(p=>p.version===VERSION);
  if(relays.length&&!candidates.length)throw error('VERSION_MISMATCH','浏览器扩展与本机服务版本不一致，请先升级两端。');
- if(candidates.length>1)throw error('MULTIPLE_INSTANCES','发现多个同版本服务。请在设置的「指定实例」中选择目标端口。');
+ if(candidates.length>1)throw error('MULTIPLE_INSTANCES','发现多个同版本服务。请让本机 Agent 核对目标实例。');
  if(!candidates.length)throw probes.some(Boolean)?error('PORT_OCCUPIED_OR_OLD_RELAY','端口上有响应，但不是支持配对的 MDY Terminal 服务；现有配对未更改。'):error('RELAY_UNREACHABLE','未发现指定的本机服务。请检查同版便携服务是否已启动，以及实际端口。');
  const {url}=candidates[0];
  const same=previous?.url===url,bridgeId=(same&&previous.bridgeId)||crypto.randomUUID();
