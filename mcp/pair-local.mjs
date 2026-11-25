@@ -1,4 +1,3 @@
-import {execFileSync} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import path from 'node:path';
@@ -25,7 +24,14 @@ export async function approveLocalOffer(text,config,fetcher=fetch){
  let info;try{info=await response.json();}catch{info=null;}
  if(info?.protocol!=='xutu-pairing/v1')fail('PORT_CONFLICT_OR_OLD_RELAY','Configured port is occupied by an unrelated listener or an older relay.');
  if(info.relayVersion!==VERSION)fail('VERSION_MISMATCH','Extension, helper, and relay must run the same version.');
- if(!id)return {status:'no_offer',relayVersion:VERSION};
+ if(!id){
+  const handshake=await request('/mcp',{method:'POST',headers:{Authorization:'Bearer '+config.clientToken,'Content-Type':'application/json'},
+   body:JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize'})});
+  if(handshake.status===401)fail('CREDENTIAL_MISMATCH','The running relay rejected the local pairing (HTTP 401).');
+  const body=await handshake.json().catch(()=>null);
+  if(!handshake.ok||body?.result?.serverInfo?.version!==VERSION)fail('RELAY_INCOMPATIBLE','Could not verify the configured MCP endpoint.');
+  return {status:'relay_authenticated',relayVersion:VERSION};
+ }
  const approved=await request('/pairing/approve',{method:'POST',headers:{Authorization:'Bearer '+config.clientToken,'X-Xutu-Pairing-Id':id}});
  if(approved.ok)return {status:'authorized',relayVersion:VERSION};
  if(approved.status===401)fail('CREDENTIAL_MISMATCH','The running relay rejected the local pairing (HTTP 401).');
@@ -33,14 +39,12 @@ export async function approveLocalOffer(text,config,fetcher=fetch){
  fail('OFFER_NOT_FOUND','The offer expired or belongs to a different instance. Nothing was changed.');
 }
 
-function clipboard(){
- const options={encoding:'utf8',timeout:2500,windowsHide:true,stdio:['ignore','pipe','ignore'],maxBuffer:2*1024*1024};
- const commands=process.platform==='win32'?[['powershell.exe','-NoProfile','-NonInteractive','-Command','Get-Clipboard -Raw']]:process.platform==='darwin'?[['pbpaste']]:[['wl-paste','--no-newline'],['xclip','-selection','clipboard','-o']];
- for(const [command,...args] of commands)try{return execFileSync(command,args,options);}catch{}
- fail('CLIPBOARD_UNAVAILABLE','Unable to read the local clipboard. The browser must authorize first.');
-}
-
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- try{const config=await localConfig();console.log(JSON.stringify(await approveLocalOffer(process.argv.includes('--check')?'':clipboard(),config)));}
- catch(e){console.error(JSON.stringify({status:'failed',code:e.code||'PAIRING_ERROR'}));process.exitCode=1;}
+ try{
+  const args=process.argv.slice(2);
+  const check=args.length===1&&args[0]==='--check';
+  if(!check&&!(args.length===2&&args[0]==='--offer'&&/^[a-f0-9]{32}$/.test(args[1])))fail('INVALID_ARGS','Use --check or --offer followed by the exact browser pairing ID.');
+  const config=await localConfig();console.log(JSON.stringify(await approveLocalOffer(check?'':'MDY-PAIRING-OFFER: '+args[1],config)));
+ }
+ catch(e){console.error(JSON.stringify({status:'failed',code:e.code||'PAIRING_ERROR',...(e.code?{message:e.message}:{})}));process.exitCode=1;}
 }

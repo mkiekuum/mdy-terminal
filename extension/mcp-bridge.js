@@ -1,4 +1,4 @@
-import {VERSION} from './core.js';
+import {VERSION,fail,equivalent} from './core.js';
 import {McpGate} from './mcp-policy.js';
 
 export function relayUrl(value) {
@@ -32,30 +32,36 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
                                hasPermission, fetcher = fetch, schedule}) {
   const previews = previewStorage(storage);
   let targetConfig;
-  const gate = new McpGate(command => run(command, targetConfig),
-    () => identity(targetConfig), Date.now, previews);
+  const gate = new McpGate((command,guard) => run(command,targetConfig,guard), async command => {
+    const current=(await storage.get('mcpConnection')).mcpConnection;
+    if(!equivalent(current,targetConfig.connection))fail('CONNECTION_CHANGED','本机连接已变化，请重新配对或预览。');
+    if(hasPermission&&!await hasPermission())fail('BROWSER_PERMISSION_DENIED','本机访问授权已撤销，未写入。');
+    return identity(targetConfig,command);
+  }, Date.now, previews);
   let running = false;
   let timer;
   let pendingReceipt;
 
   async function dispatch(job, config) {
     const current = (await storage.get('mcpConnection')).mcpConnection;
-    if (JSON.stringify(current) !== JSON.stringify(config)) throw Error('连接设置已变化，未执行');
-    const command = job.kind === 'execute'
-      ? (await previews.get(job.previewJobId))?.command : job.command;
-    const target = resolveTarget ? await resolveTarget(command) :
+    if (!equivalent(current,config)) fail('CONNECTION_CHANGED','连接设置已变化，未执行');
+    const previous = job.kind === 'execute' ? await previews.get(job.previewJobId) : null;
+    const command = previous?.command || job.command;
+    if(job.kind==='execute'&&(!previous||previous.expires<=Date.now()))fail('PREVIEW_EXPIRED','预览不存在或已过期。请重新读取并预览。');
+    const target = resolveTarget ? await resolveTarget(command,previous?.actor) :
       {tab:{id:config.tabId}, selection:'selected'};
     if (job.kind === 'status' || job.kind === 'login') {
       return browserStatus(target, job.kind === 'login');
     }
-    if (!target.tab) throw Error(target.selection === 'ambiguous'
-      ? '请指定命令的 tabId 或切到目标计划站页。' : '请打开 MDY网页。');
-    targetConfig = {...config, tabId:target.tab.id,planId:command?.steps?.[0]?.target?.id,
-      creatingDraft:command?.steps?.length===1 && command.steps[0].op==='plan.create'};
-    const rebound = command && command.tabId !== target.tab.id
-      ? {...job,tabId:target.tab.id,command:{...command,tabId:target.tab.id}}
-      : {...job,tabId:target.tab.id};
-    return gate.handle(rebound);
+    if (!target.tab) fail(target.selection==='ambiguous'?'TARGET_AMBIGUOUS':'TARGET_CHANGED',target.selection==='ambiguous'
+      ? '多个网页可能匹配。请切到目标计划站页或重新读取标签页。' : '找不到指定计划站页。请打开目标页面并重新读取。');
+    targetConfig = {...config, tabId:target.tab.id,connection:config};
+    if(previous&&previous.command.tabId!==undefined&&target.tab.id!==previous.command.tabId){
+      await previews.remove(job.previewJobId);
+      gate.previews.delete(job.previewJobId);
+      fail('TARGET_CHANGED','已按账号和计划 ID 找到替代标签页 '+target.tab.id+'；请在该页重新读取、预览并取得确认。');
+    }
+    return gate.handle(command&&job.kind!=='execute'?{...job,command:{...command,tabId:target.tab.id}}:job);
   }
 
   async function tick() {
@@ -66,12 +72,19 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
     try {
       const config = (await storage.get('mcpConnection')).mcpConnection;
       if (!config?.enabled) return;
-      if (hasPermission && !await hasPermission()) throw Error('请使用“复制给 MCP AI”授予本机连接权限。');
+      if (hasPermission && !await hasPermission()) fail('BROWSER_PERMISSION_DENIED','本机访问未获浏览器授权。请使用“连接本机服务”。');
       const base = relayUrl(config.url);
       const headers = {'X-Xutu-Bridge-Id':config.bridgeId, 'X-Xutu-Bridge-Protocol':'2',
         'X-Xutu-Extension-Version':VERSION, Authorization:'Bearer ' + config.token,
         'Content-Type':'application/json'};
-      const options = () => ({headers, signal:AbortSignal.timeout(15000), redirect:'error'});
+      const options = () => ({headers, signal:AbortSignal.timeout(15000), redirect:'error',credentials:'omit',cache:'no-store'});
+      function connectionError(response){
+        const detail={401:['CREDENTIAL_MISMATCH','本机服务在线，但浏览器配对凭据不一致（HTTP 401）。请选择“连接本机服务”恢复。'],
+          409:['ANOTHER_BROWSER_CONNECTED','本机服务已有其他浏览器桥在线，未接管其他实例。'],
+          404:['RELAY_INCOMPATIBLE','端口上的服务不支持浏览器桥协议。'],
+          426:['VERSION_MISMATCH','扩展与服务版本不同，请升级并重新加载两端。']}[response.status];
+        fail(...(detail||['RELAY_HTTP_ERROR','本机服务返回 HTTP '+response.status]));
+      }
       const postReceipt = async receipt => {
         const post = value => fetcher(base + '/bridge/result', {...options(), method:'POST',
           body:JSON.stringify({id:receipt.id, result:value})});
@@ -82,26 +95,21 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
             message:'回执超过本机服务上限。读取时请缩小查询；已派发写入须先核对网站。'});
         }
         if (posted.ok || posted.status === 409) pendingReceipt = undefined;
-        if (!posted.ok) throw Error('结果尚未确认，请查询原请求');
+        if (!posted.ok) connectionError(posted);
       };
       if (pendingReceipt) {
-        if (pendingReceipt.config === JSON.stringify(config)) await postReceipt(pendingReceipt);
+        if (equivalent(pendingReceipt.config,config)) await postReceipt(pendingReceipt);
         else pendingReceipt = undefined;
       }
       const response = await fetcher(base + '/bridge/next', options());
-      if (!response.ok) {
-        const details={401:['CREDENTIAL_MISMATCH','本机服务在线，但浏览器配对凭据不一致，请通过“连接本机服务”重新配对。'],
-          409:['ANOTHER_BROWSER_CONNECTED','本机服务已有其他浏览器桥在线，未覆盖或终止其他实例。'],
-          404:['RELAY_INCOMPATIBLE','本机服务版本不支持当前浏览器桥协议。']}[response.status];
-        const error=Error(details?.[1]||'连接失败 HTTP '+response.status);error.code=details?.[0]||'RELAY_HTTP_ERROR';throw error;
-      }
+      if (!response.ok) connectionError(response);
       const job = await response.json();
       delay = job ? 0 : 3000;
       if (job) {
         let result;
         try { result = await dispatch(job, config); }
         catch (error) { result = {status:'failed', code:error.code, message:error.message}; }
-        pendingReceipt = {id:job.id, kind:job.kind, result, config:JSON.stringify(config)};
+        pendingReceipt = {id:job.id, kind:job.kind, result, config};
         await postReceipt(pendingReceipt);
       }
       const prior = (await storage.get('mcpBridgeStatus')).mcpBridgeStatus;
@@ -110,8 +118,8 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
       }
     } catch (error) {
       delay = undefined; // A Chrome alarm retries when the service or permission returns.
-      const code=error.code||(/Failed to fetch|NetworkError/i.test(error.message)?'RELAY_OFFLINE':'MCP_CONNECTION_ERROR');
-      await storage.set({mcpBridgeStatus:{state:'error',code,message:error.message,at:Date.now()}});
+      const code=error.code||(/Failed to fetch|NetworkError|fetch failed|timeout|timed out/i.test(error.message)?'RELAY_UNREACHABLE':'MCP_CONNECTION_ERROR');
+      await storage.set({mcpBridgeStatus:{state:'error',code,message:code==='RELAY_UNREACHABLE'?'无法访问本机服务。请检查服务是否已启动及端口是否正确。':error.message,at:Date.now()}});
     } finally {
       running = false;
       if (schedule && delay !== undefined) timer = schedule(tick, delay);

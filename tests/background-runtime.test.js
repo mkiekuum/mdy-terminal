@@ -10,9 +10,11 @@ test('后台端到端：问卷门禁、真实ID引用、批次历史、账号隔
  web.actor='USER_B';assert.equal((await call({kind:'run',command:list})).steps[0].data.count,0);assert.equal((await question('inspect',{request:'unused'})).code,'INVALID_SCHEMA');web.actor='USER_A';
  const script=envelope([{id:'js',op:'script.execute',params:{source:'document.title',world:'MAIN'}}],{tabId:123});assert.equal((await executor.run(script)).status,'success');assert.equal(scripts,1);await executor.run({...script,requestId:'preview',mode:'preview'});assert.equal(scripts,1);delete chrome.userScripts.execute;assert.equal((await executor.run({...script,requestId:'disabled'})).steps[0].code,'USER_SCRIPTS_DISABLED');assert.equal((await call({kind:'native'})).code,'INVALID_SCHEMA');assert.equal((await call({kind:'cliTest'})).code,'INVALID_SCHEMA');
  for(const key of ['A','B','C'])web.add(key);await executor.run(envelope(['A','B','C'].map(key=>rename(key,'updated')),{tabId:123}));web.records.get('B').revision++;web.records.get('B').current.deadline='2026-11-13';const partial=await executor.run(envelope([{id:'undo',op:'history.undo'}],{tabId:123}));assert.equal(partial.status,'success');assert.equal(web.records.get('B').current.deadline,'2026-11-13');
- const {currentPlanTarget}=await import('../extension/background.js');
- const background=await currentPlanTarget({steps:[{target:{id:'B'}}]});
- assert.equal(background.selection,'background_session');
- assert.equal(background.tab.id,123);
+ const {mcpPlanTarget}=await import('../extension/background.js');
+ const background=await mcpPlanTarget(envelope([{id:'r',op:'plan.get',target:{id:'B'}}]));
+ assert.equal(background.selection,'background_session');assert.equal(background.tab.id,123);
+ const originalGet=chrome.tabs.get;chrome.tabs.get=async n=>{if(n===900)throw Error('stale');return originalGet(n);};
+ const missing=await mcpPlanTarget(envelope([{id:'r',op:'plan.get',target:{id:'B'}}],{tabId:900}));
+ assert.equal(missing.selection,'no_target');assert.equal(missing.tab,null);
  }finally{delete globalThis.chrome;delete globalThis.confirm;delete globalThis.indexedDB;}
 });

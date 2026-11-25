@@ -4,17 +4,15 @@
 
 ## 便携版（推荐）
 
-选择同版便携包，保留整个目录。Agent 使用包内 runtime 启动本机服务，stdio 客户端使用 mcp/stdio.mjs --paired。
+从同版本 Release 下载匹配系统与架构的便携包，核对 SHA256SUMS，解压后运行根目录 `Start-MCP.cmd` 或 `Start-MCP.command`。保留整个目录。源码使用 Node 22+ 运行 `node mcp/start-local.mjs`。
 
-## 源码方式首次使用
+## 首次连接或配对恢复
 
-1. 登录MDY 计划站，输入需求，点击“复制给 MCP AI”。首次由浏览器询问允许连接本机，须使用者自己授权。
-2. 已有配对会自动复用。首次配对时 Agent 使用同版运行时执行 mcp/pair-local.mjs，读取剪贴板中的一次性请求并核准。
-3. Agent 用 xutu_status 核实已登录的浏览器会话，再按稳定 ID 只读回读目标。多个服务时须核对实例归属。
-4. 服务仅监听127.0.0.1:62924，不部署公网。保持服务进程；关闭后连接断开。Windows 手动备用入口为 mcp/Start-MCP.cmd，普通 JSON 使用不需要 Node。
-5. 每位用户独立生成凭据，不随源码分享。旧配置更新前核对归属和在途请求；只停止确认为该本机服务的进程。浏览器重启后已启用的配对会继续工作。每次请求自动识别当前MDY 计划站页；密钥沿用，断开则删除本机扩展配置。
+1. 同版服务启动后，扩展中选择「设置 → 连接本机服务」。出现浏览器权限提示时由本人允许。已有配对正常时，两端升级后可直接重连，无需重复配对。
+2. 若浏览器复制了一次性编号，把编号交给可信**本机** Agent。Agent 使用包内运行时执行 `mcp/pair-local.mjs --offer <编号>`，读取当前实例本机配置并核准；不读取全局剪贴板，不输出密钥。浏览器随即验证请求并领取桥凭据；编号两分钟有效。浏览器和 Agent 的本机配置都不需由用户打开、导入或发送。
+3. 用 `xutu_status` 查两端版本和网站会话，再读一份获准读取的计划。不支持本机 MCP 的 AI 使用普通 JSON。首次配置客户端指向下节的 stdio 入口，必要时由用户重载客户端。
 
-服务启动报 EADDRINUSE 时先确认是否已经启动，不能杀掉所有 Node 进程。更改端口可在私有 connection.json 的 url 中调整，浏览器与 AI 客户端均须使用同一份实际运行的配对配置。重启服务后旧队列不恢复；原执行结果未知时先查网站/插件原 requestId，不能重新发送旧写入。
+服务仅监听 `127.0.0.1`，首次普通实例在 62924–62934 取空闲端口；已配置实例遇到端口占用不会改动配置。使用 `--new-instance` 时启动器选独立端口。首次发现多个服务或使用非默认范围的端口时，在设置展开「指定实例」，输入启动器显示的端口；已有其他配对时不会覆盖它。独立实例的本机 Agent/stdio 可由维护者设置 `XUTU_PAIR_FILE` 定位该实例的配置，无需让用户选择或发送文件。不要停止无关进程。服务重启不恢复旧队列；原写入未知时先查网站和扩展的原 `requestId`。
 
 ## 支持标准 Streamable HTTP 的客户端
 
@@ -34,15 +32,14 @@ codex mcp add xutu-terminal --url http://127.0.0.1:62924/mcp --bearer-token-env-
 
 ## 只支持 stdio 的客户端
 
-使用 `node` 运行本机绝对路径 `mcp/stdio.mjs`，在客户端环境设置 `XUTU_MCP_TOKEN` 为 clientToken。可选 `XUTU_MCP_URL` 默认为本机地址。适配器转发标准 JSON-RPC，不在 stdout 输出日志或凭据。
+使用便携包内 `runtime/node`（Windows 为 `runtime/node.exe`）或本机 Node 22+，运行 `mcp/stdio.mjs --paired`。适配器读取本机实例配置，转发标准 JSON-RPC，不在 stdout 输出日志或凭据。
 
 ```json
 {
   "mcpServers": {
     "xutu-terminal": {
-      "command": "node",
-      "args": ["填写解压目录的绝对路径/mcp/stdio.mjs"],
-      "env": {"XUTU_MCP_TOKEN": "仅在本机设置自己的 clientToken"}
+      "command": "便携目录/runtime/node",
+      "args": ["便携目录/mcp/stdio.mjs", "--paired"]
     }
   }
 }
@@ -64,7 +61,8 @@ codex mcp add xutu-terminal --url http://127.0.0.1:62924/mcp --bearer-token-env-
 - `xutu_login`：无参数。使用扩展内已保存的资料尝试登录，按 jobId 读取结果。只以 session 为 `already_logged_in` 判定登录成功。没有网页或目标不唯一时请打开或切到要操作的MDY 计划站页。
 - `xutu_read` 支持完整 command，4.6.1 服务也可无参读取当前计划摘要，或仅传 tabId。摘要包含目标、版本、节点和连线数量、完整性及警告。从原回执读取节点时，可给 xutu_result 传 path 数组 ["steps","0","data","plan","current","nodes"] 和 limit。按 nextOffset 继续，拼接所有 jsonText 后解析 JSON。
 - `xutu_preview`：一次操作或一个 plan.batch 的预览，保存短期执行依据。
-- `xutu_execute`：绑定成功 previewJobId 与使用者本次明确同意原文 approval。预览有效期5分钟，不能更换命令；账号/网页变化、版本冲突会停止。恢复通过既有 history.preview 的 reviewToken 核对。
+- `xutu_execute`：绑定成功 previewJobId 与使用者本次明确同意原文 approval。预览有效期5分钟，不能更换命令；账号、目标页、版本或审核状态变化会停止。重新读取和预览后须再次由使用者确认；不会重复使用原确认。恢复通过既有 history.preview 的 reviewToken 核对。
+- 独立建图：在已登录的首页点「新建计划图（复制给 MCP AI）」。`plan.create` 不需要旧计划目标。预览展示参数、结构校验及网站只读检查；编号检查只覆盖当前可见计划。一次明确同意后提交并独立回读，不自动送审。未知时先查原回执及预览的 plannedTargetId。
 - `xutu_result`：查询原任务；dispatched 表示尚未确认完成，不是成功，也不能自动重发。
 
 AI 必须先展示预览摘要并等用户同意。approval 由客户端引用，服务无法独立证明这是人类输入，不能将此说成独立人工认证；不要编造同意。脚本执行及带可执行内容的原始页面导出仍只在本机插件的原有入口处理。其他现有业务/审核操作遵循正式参数契约及服务器权限，不代表每项均通过真实网站测试。

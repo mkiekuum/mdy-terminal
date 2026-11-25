@@ -35,7 +35,7 @@ export function requestJob(jobs, name, args, now) {
     case 'xutu_execute': {
       if (typeof args.approval !== 'string' || !args.approval.trim()) throw Error('缺少明确同意');
       const preview = jobs.get(args.previewJobId);
-      if (!['preview','execute'].includes(preview?.kind) || preview.status !== 'completed' ||
+      if (preview?.kind !== 'preview' || preview.status !== 'completed' ||
           preview.result?.previewJobId !== preview.id) throw Error('预览未成功');
       const existing = [...jobs.values()].find(job => job.kind === 'execute' &&
         job.previewJobId === preview.id);
