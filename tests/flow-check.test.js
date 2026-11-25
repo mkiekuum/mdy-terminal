@@ -70,7 +70,7 @@ test('approved name change uses latest version, one POST, preserved dates/status
 test('create supports guard, previews mismatch without writing and legacy commands remain usable',async()=>{
  const web=site(),{r}=fixture(),params={title:'Synthetic',number:'FLOW',nodes:r.nodes.map(({kind,...n})=>n),edges:[{fromNodeId:'S',toNodeId:'A',estimateDays:estimate(3)}],flowCheck:r},api=new ApiAdapter(web.request);
  const step={id:'new',op:'plan.create',params};const good=await api.run(step,envelope([]));assert(good.serverVerified);assert(good.flowCheck.canSubmit);
- params.nodes[1].name='Wrong';const preview=await api.run(step,{...envelope([]),mode:'preview'});assert.equal(preview.data.flowCheck.canSubmit,false);assert.equal(web.calls.filter(c=>c.method==='POST').length,1);
+ params.number='FLOW-SECOND';params.nodes[1].name='Wrong';const preview=await api.run(step,{...envelope([]),mode:'preview'});assert.equal(preview.data.flowCheck.canSubmit,false);assert.equal(web.calls.filter(c=>c.method==='POST').length,1);
  await assert.rejects(api.run(step,envelope([])),{code:'FLOW_CHECK_FAILED'});delete params.flowCheck;params.number='LEGACY';assert((await api.run(step,envelope([]))).serverVerified);
 });
 test('source graph must be valid and runtime/schema/prompt agree on optional flow contract',()=>{

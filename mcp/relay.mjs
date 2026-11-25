@@ -5,7 +5,8 @@ import {VERSION} from '../extension/core.js';
 const object=properties=>({type:'object',properties,additionalProperties:false});
 export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now(),pairingNonceTtlMs=120000}){
  if(!clientToken||!bridgeToken||clientToken.length<32||bridgeToken.length<32||clientToken===bridgeToken)throw Error('需要两枚不同的至少32字符密钥');
- const jobs=new Map();let lastBridge=null,activeBridge=null,bridgeProtocol=null,extensionVersion=null;
+ const jobs=new Map();let lastBridge=null,activeBridge=null,leaseAt=null,bridgeProtocol=null,extensionVersion=null;
+ const another=peer=>activeBridge&&activeBridge!==peer&&now()-leaseAt<90000;
  const offers=new Map(),digest=s=>createHash('sha256').update(s).digest('hex');
  const auth=(req,token)=>{const got=Buffer.from(req.headers.authorization||''),want=Buffer.from('Bearer '+token);return got.length===want.length&&timingSafeEqual(got,want);};
  const tools=[
@@ -26,13 +27,13 @@ export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now
      if(req.headers.origin||!auth(req,clientToken))return json(401,{error:'UNAUTHORIZED'});
      const entry=offers.get(req.headers['x-xutu-pairing-id']);
      if(!entry)return json(404,{error:'PAIRING_EXPIRED'});
-     if(activeBridge&&activeBridge!==entry.peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     if(another(entry.peer))return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
      entry.approved=true;return json(200,{status:'authorized'});
     }
     if(req.url==='/pairing/probe'){
      if(!auth(req,bridgeToken))return json(401,{error:'CREDENTIAL_MISMATCH'});
      const peer=req.headers['x-xutu-bridge-id'];
-     if(activeBridge&&activeBridge!==peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     if(another(peer))return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
      return json(200,{protocol:'xutu-pairing/v1',relayVersion:VERSION});
     }
     const proof=req.headers['x-xutu-pairing-proof'],peer=req.headers['x-xutu-bridge-id'];
@@ -47,13 +48,15 @@ export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now
      const id=req.headers['x-xutu-pairing-id'],entry=offers.get(id);
      if(!entry||entry.peer!==peer||entry.origin!==req.headers.origin||!timingSafeEqual(Buffer.from(entry.proof,'hex'),Buffer.from(digest(proof),'hex')))return json(403,{error:'PAIRING_PROOF_INVALID'});
      if(!entry.approved)return json(202,{status:'waiting'});
-     if(activeBridge&&activeBridge!==peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     if(another(peer))return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     if(activeBridge!==peer){lastBridge=null;bridgeProtocol=null;extensionVersion=null;}
+     activeBridge=peer;leaseAt=now();
      offers.delete(id);return json(200,{bridgeToken,protocol:'xutu-pairing/v1',relayVersion:VERSION});
     }
     return json(404,{error:'NOT_FOUND'});
    }
    const bridge=req.url?.startsWith('/bridge/');if(!auth(req,bridge?bridgeToken:clientToken))return json(401,{error:'UNAUTHORIZED'});
-   if(bridge){const peer=req.headers['x-xutu-bridge-id'];if(typeof peer!=='string'||!/^[-a-zA-Z0-9]{8,80}$/.test(peer))return json(400,{error:'BRIDGE_ID_REQUIRED'});if(activeBridge&&activeBridge!==peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});activeBridge=peer;}
+   if(bridge){const peer=req.headers['x-xutu-bridge-id'];if(typeof peer!=='string'||!/^[-a-zA-Z0-9]{8,80}$/.test(peer))return json(400,{error:'BRIDGE_ID_REQUIRED'});if(another(peer))return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});if(req.url==='/bridge/next'&&req.headers['x-xutu-extension-version']&&req.headers['x-xutu-extension-version']!==VERSION)return json(426,{error:'VERSION_MISMATCH'});activeBridge=peer;leaseAt=now();}
    if(req.method==='GET'&&req.url==='/bridge/next'){
     lastBridge=now();bridgeProtocol=req.headers['x-xutu-bridge-protocol'];extensionVersion=req.headers['x-xutu-extension-version']||null;for(const j of jobs.values())if(j.status==='queued'){j.status='dispatched';j.bridgeId=activeBridge;return json(200,j);}return json(200,null);
    }

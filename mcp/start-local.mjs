@@ -43,7 +43,8 @@ async function start(){
       fs.writeFileSync(tmp,JSON.stringify(cfg,null,2),{mode:0o600,flag:'wx'});
       try{fs.linkSync(tmp,file);}finally{fs.unlinkSync(tmp);}
     }
-    console.log('Local MCP ready: '+cfg.url+'/mcp\nPairing file: '+file);
+    console.log('Local MCP ready: '+cfg.url+'/mcp\nIn the extension choose Settings > Connect local service. No file import.');
+    if(isolated)console.log('For this independent instance only, set XUTU_PAIR_FILE in its local Agent/stdio process environment: '+file);
   }catch(error){server.close();throw error;}
 }
 start().catch(error=>{

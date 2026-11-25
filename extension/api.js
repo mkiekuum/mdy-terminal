@@ -15,6 +15,11 @@ writes.push('graph.simplify','plan.batch');
 writes.push('task.merge','task.split');
 writes.push('task.assign','task.updateStatus',...recordWrites);
 Object.assign(reads,recordReads);
+function websiteState(record){
+ const reviewStatus=record?.review?.status??null;
+ return {reviewStatus,label:reviewStatus==='submitted'?'待审核':reviewStatus==='approved'?'审核通过':
+  ['draft','modified','rejected'].includes(reviewStatus)?'已保存（未通过审核）':'已回读，审核状态未知'};
+}
 export async function canEditPlan(request, record, session) {
  if (session.mustChangePassword || !session.actor) return false;
  if (planAccess(session,record).canEdit) return true;
@@ -54,7 +59,7 @@ export class ApiAdapter{
    if(recordWrites.includes(s.op))throw error;
    if(writes.includes(s.op)){
     const conflict=error.code==='VERSION_CONFLICT';
-    error.outcome=conflict||['PERMISSION_DENIED','NOT_LOGGED_IN','INVALID_SCHEMA','INVALID_SITE_DATA'].includes(error.code)||!trace.submitted?'not_executed':'unconfirmed';
+    error.outcome=conflict||['PERMISSION_DENIED','NOT_LOGGED_IN','INVALID_SCHEMA','INVALID_SITE_DATA','PLAN_NUMBER_CONFLICT'].includes(error.code)||!trace.submitted?'not_executed':'unconfirmed';
     if(conflict||trace.submitted){
      try{const id=trace.id||await this.resolve(s.target);const latest=await this.request('/api/plans/'+encodeURIComponent(id));
       error.diagnostic={status:'read',latestVersion:latest.revision,latest,changedSinceRead:trace.before?planDiff(trace.before.current,latest.current):null,requestedFields:requestedChanges(s,latest.current),basisNote:trace.before?.revision===s.target?.version?'列出执行前读取与冲突后回读差异':'旧版本全文未提供，不能断言哪些字段发生冲突；列出拟改字段的最新值，请核对',choices:['保留网站最新内容，重新生成局部修改','核对冲突字段后提出新的明确修改'],automaticRetry:false};
@@ -76,7 +81,10 @@ export class ApiAdapter{
  if (['plan.create','plan.copy'].includes(op) && p.owner && p.owner !== session.actor && session.role !== 'admin') {
   fail('PERMISSION_DENIED','当前账号只可为自己创建计划；指定其他负责人需管理员权限。');
  }
- if(recordWrites.includes(op))return await runRecord(this.request,s,e);
+ if(recordWrites.includes(op))return await runRecord(async(path,method,body)=>{
+  if(method==='POST')try{await this.options.beforeSubmit?.();}catch(error){error.outcome='not_executed';throw error;}
+  return this.request(path,method,body);
+ },s,e);
  if(reads[op])return {data:await this.request(Object.hasOwn(workspaceReads,op)?workspacePath(op,p):reads[op]),serverVerified:true};
  if(['task.assign','task.updateStatus'].includes(op)){
  const planId=await this.resolve(t),items=await this.request('/api/work-tasks');
@@ -88,13 +96,20 @@ export class ApiAdapter{
  if(!assign)assert(validDate(value),'完成日期无效');
  if(e.mode==='preview')return {data:{before:item[field],after:value,field},serverVerified:false};
  if(e.execution?.backup)fail('UNSUPPORTED_BY_SITE','工作任务表不支持快照恢复，未写入');
- trace.submitted=true;trace.id=planId;await this.request('/api/work-tasks/update','POST',{planId,index:item.index,from:item.from,to:item.to,field,value,baseRevision:item.revision,operation:await operationId(e.requestId,s.id)});
+ const operation=await operationId(e.requestId,s.id);await this.options.beforeSubmit?.();trace.submitted=true;trace.id=planId;await this.request('/api/work-tasks/update','POST',{planId,index:item.index,from:item.from,to:item.to,field,value,baseRevision:item.revision,operation});
  const after=(await this.request('/api/work-tasks')).find(x=>x.planId===planId&&x.from===item.from&&x.to===item.to);
  if(!after||after[field]!==value)fail('SERVER_NOT_CONFIRMED');
  return {targetId:planId,beforeVersion:item.revision,afterVersion:after.revision,data:after,serverVerified:true};
  }
  let path,id,before,current,backupId,changes,flowCheck,canManage;
- if(op==='plan.create'){id=crypto.randomUUID();current=nativePlan(p,session.actor);path='/api/plans';}
+ if(op==='plan.create'){
+  assert(!t.id&&!t.number,'新建独立计划不能指定现有计划目标');
+  id=await operationId(e.requestId,s.id,'plan.create');current=nativePlan(p,session.actor);path='/api/plans';
+  const visible=await this.request('/api/plans');
+  if(!Array.isArray(visible))fail('INVALID_SITE_DATA','未能核对当前可见的计划编号。');
+  const existing=visible.find(row=>row.id===id||row.planNumber===current.planNumber);
+  if(existing)throw Object.assign(Error('当前可见计划已有该编号或请求 ID。请回读现有计划，不要重复创建。'),{code:'PLAN_NUMBER_CONFLICT',diagnostic:{existingPlanId:existing.id,automaticRetry:false}});
+ }
  else if(op.startsWith('project.')||op.startsWith('group.')){
  if(e.execution?.backup)fail('UNSUPPORTED_BY_SITE','项目/权限配置快照恢复未核实，未执行写入');
  const endpoint=op.startsWith('project.')?'/api/project-groups':'/api/visibility-groups',actions={'project.create':'create','project.assignPlan':'assign','group.create':'create','group.update':'rename','group.remove':'delete','group.assign':'assign'};
@@ -103,7 +118,7 @@ export class ApiAdapter{
   if(!listed || listed.planOwner!==session.actor)fail('PERMISSION_DENIED','只有计划负责人或管理员可调整所属项目组');
  }
  if(e.mode==='preview')return {data:{endpoint,action:actions[op],params:p},serverVerified:false};
- trace.submitted=true;await this.request(endpoint,'POST',{...p,action:actions[op]});
+ await this.options.beforeSubmit?.();trace.submitted=true;await this.request(endpoint,'POST',{...p,action:actions[op]});
  const data=await this.request(endpoint),groups=Array.isArray(data)?data:data.groups||[];let verified=false;
  if(op==='project.create')verified=groups.filter(g=>g.number===p.number&&g.name===p.name&&g.owner===p.owner).length===1;
  if(op==='project.assignPlan'){const plans=await this.request('/api/plans');verified=plans.some(x=>x.id===p.planId&&(x.projectGroupId||'')===p.groupId);}
@@ -115,7 +130,7 @@ export class ApiAdapter{
  return {data,serverVerified:true};
  }else{
  if(op==='plan.restore'){
- assert(typeof t.id==='string'&&t.id,'恢复必须指定稳定 ID');const trash=await this.request('/api/trash'),entry=trash.find(x=>x.id===t.id);if(!entry)fail('TARGET_NOT_FOUND');if(t.version!==undefined&&t.version!==entry.revision)fail('VERSION_CONFLICT');if(session.role!=='admin'&&entry.planOwner!==session.actor)fail('PERMISSION_DENIED');if(e.mode==='preview')return {data:{operation:op,targetId:t.id,revision:entry.revision,before:null,after:entry.current||entry,notice:'将此计划从垃圾桶恢复；保留其现有内容'},serverVerified:false};trace.submitted=true;trace.id=t.id;const result=await this.request('/api/plans/'+encodeURIComponent(t.id)+'/undelete','POST',{baseRevision:entry.revision,operation:await operationId(e.requestId,s.id)});const after=await this.request('/api/plans/'+encodeURIComponent(t.id));if(after.revision!==result.revision)fail('SERVER_NOT_CONFIRMED');return {targetId:t.id,afterVersion:after.revision,data:after,serverVerified:true};
+ assert(typeof t.id==='string'&&t.id,'恢复必须指定稳定 ID');const trash=await this.request('/api/trash'),entry=trash.find(x=>x.id===t.id);if(!entry)fail('TARGET_NOT_FOUND');if(t.version!==undefined&&t.version!==entry.revision)fail('VERSION_CONFLICT');if(session.role!=='admin'&&entry.planOwner!==session.actor)fail('PERMISSION_DENIED');if(e.mode==='preview')return {data:{operation:op,targetId:t.id,revision:entry.revision,before:null,after:entry.current||entry,notice:'将此计划从垃圾桶恢复；保留其现有内容'},serverVerified:false};const operation=await operationId(e.requestId,s.id);await this.options.beforeSubmit?.();trace.submitted=true;trace.id=t.id;const result=await this.request('/api/plans/'+encodeURIComponent(t.id)+'/undelete','POST',{baseRevision:entry.revision,operation});const after=await this.request('/api/plans/'+encodeURIComponent(t.id));if(after.revision!==result.revision)fail('SERVER_NOT_CONFIRMED');return {targetId:t.id,afterVersion:after.revision,data:after,serverVerified:true,websiteState:websiteState(after)};
  }
  id=await this.resolve(t);path='/api/plans/'+encodeURIComponent(id);before=await this.request(path);current=clone(before.current);
  if(['plan.get','plan.export'].includes(op))return {targetId:id,afterVersion:before.revision,data:before,serverVerified:true};
@@ -134,6 +149,8 @@ export class ApiAdapter{
  if(t.versionFrom!==undefined)fail('INVALID_SCHEMA','versionFrom 必须由执行器关联到已确认步骤');
  if(['node.batchUpdate','node.renumber'].includes(op))assert(Number.isInteger(t.version),'局部批量修改必须提供读取依据版本');
  if(t.version!==undefined&&t.version!==before.revision)fail('VERSION_CONFLICT');
+ if(op==='review.submit'&&['submitted','approved'].includes(before.review?.status))fail('REVIEW_STATUS_CHANGED','计划已待审核或审核通过，不重复送审。');
+ if(['review.approve','review.reject'].includes(op)&&before.review?.status!=='submitted')fail('REVIEW_STATUS_CHANGED','仅待审核计划可通过或退回。');
  if(op==='plan.batch'){
  assert(Number.isInteger(t.version),'批量修改必须提供读取依据版本');
  let virtual=clone(before);
@@ -169,18 +186,22 @@ export class ApiAdapter{
  const mergePreview = e.mode === 'preview' && (op === 'task.merge' ||
   op === 'plan.batch' && p.changes.some(change => ['task.merge','node.remove'].includes(change.op)));
  if (mergePreview) changes.redundantEdges = transitiveEdges(current.edges);
- validatePlan(current);if(!p.flowCheck&&['plan.create','plan.batch'].includes(op))flowCheck={format:'pass',drawing:'unverified',dependencies:'unverified',duration:'unverified',business:'not_independently_verified',canSubmit:true,notice:'未附确认图纸清单：原图一致性、工作开始约束与工期映射未核实；网站保存状态单独报告。'};if(p.flowCheck)flowCheck=e.mode==='preview'?inspectFlow(p.flowCheck,current):enforceFlow(p.flowCheck,current);assert(validDate(current.start)&&validDate(current.deadline)&&current.edges.every(x=>validDate(x.completedAt||'')),'日期无效');if(e.mode==='preview')return {data:{localValidation:'passed',serverAuthorization:'unverified',reviewStatus:before?.review?.status||'draft',before:before?.current||null,after:['plan.delete','plan.archive'].includes(op)?null:current,revision:before?.revision,operation:op,rollback:'not_guaranteed',...(flowCheck?{flowCheck}:{}),changes:changes||planDiff(before?.current,current)},serverVerified:false};
+ validatePlan(current);if(!p.flowCheck&&['plan.create','plan.batch'].includes(op))flowCheck={format:'pass',drawing:'unverified',dependencies:'unverified',duration:'unverified',business:'not_independently_verified',canSubmit:true,notice:'未附确认图纸清单：原图一致性、工作开始约束与工期映射未核实；网站保存状态单独报告。'};if(p.flowCheck)flowCheck=e.mode==='preview'?inspectFlow(p.flowCheck,current):enforceFlow(p.flowCheck,current);assert(validDate(current.start)&&validDate(current.deadline)&&current.edges.every(x=>validDate(x.completedAt||'')),'日期无效');
+ if(e.mode==='preview')return {data:{...(op==='plan.create'?{plannedTargetId:id}:{}),before:before?.current||null,after:['plan.delete','plan.archive'].includes(op)?null:current,revision:before?.revision,operation:op,rollback:'not_guaranteed',...(flowCheck?{flowCheck}:{}),changes:changes||planDiff(before?.current,current),
+  validation:{localStructure:'passed',website:{actor:session.actor,permission:'checked_by_read_only_preconditions_not_server_save',write:'not_attempted',reviewStatus:before?.review?.status??null,
+   notice:op==='plan.create'?'只检查当前可见计划编号；最终是否允许创建由服务器决定。仅保存新图，不提交审核。':
+    ['approved','submitted'].includes(before?.review?.status)&&!op.startsWith('review.')?'当前计划待审核或已审核。网站可能限制保存或改变审核状态；不会自动送审。登记完成日期仍要求固定稿及审核通过。':'本地校验通过不代表网站获准写入。'}}},serverVerified:false};
  if(before&&(['plan.batch',...batchOperations].includes(op))&&equivalent(before.current,current))return {targetId:id,beforeVersion:before.revision,afterVersion:before.revision,data:before,serverVerified:true,noChange:true,...(flowCheck?{flowCheck}:{})};
  if(e.execution?.backup&&before){if(!this.options.saveSnapshot)fail('UNSUPPORTED_BY_SITE','快照存储不可用，未写入');backupId=e.requestId+':'+s.id;await this.options.saveSnapshot(backupId,{actor:session.actor,targetId:before.id||id,record:before,createdAt:new Date().toISOString()});}
  const operation=await operationId(e.requestId,s.id);let body={baseRevision:before?.revision,current,operation};
  if(path==='/api/plans')body={id,current,...(op==='plan.copy'?{copySourceId:before.id}:{})};
  else if(['plan.archive','plan.delete','plan.restore','review.submit','review.approve','review.reject','history.restore'].includes(op)){path+={'plan.archive':'/trash','plan.delete':'/trash','plan.restore':'/undelete','review.submit':'/submit','review.approve':'/review','review.reject':'/review','history.restore':'/restore'}[op];body={baseRevision:before.revision,operation};if(op.startsWith('review.')&&op!=='review.submit'){body.decision=op.split('.')[1];body.note=p.note||'';if(body.decision==='reject')assert(body.note.trim(),'退回需要 note');}if(op==='history.restore'){assert(Number.isInteger(p.targetRevision),'targetRevision 必须整数');body.targetRevision=p.targetRevision;}}
  else path+=canManage&&['plan.batch','plan.replace','plan.restoreSnapshot','task.split','node.reorder','node.batchUpdate','node.renumber'].includes(op)?'/import':'/change';
- await this.options.onPhase?.('submitting');trace.id=id;trace.submitted=true;const written=await this.request(path,'POST',body);
+ await this.options.onPhase?.('submitting');await this.options.beforeSubmit?.();trace.id=id;trace.submitted=true;const written=await this.request(path,'POST',body);
  if(op==='plan.archive'||op==='plan.delete'){const trash=await this.request('/api/trash');if(!trash.some(x=>x.id===id))fail('SERVER_NOT_CONFIRMED','垃圾桶回读未找到目标');return {targetId:id,serverVerified:true,...(backupId?{backupId}:{}),data:{recoverable:true}};}
  await this.options.onPhase?.('verifying');const after=await this.request('/api/plans/'+encodeURIComponent(id));if(after.revision!==written.revision)fail('SERVER_NOT_CONFIRMED','回读版本不一致');
  let verification;
  if(path.endsWith('/change')||path==='/api/plans'||path.endsWith('/import'))verification=verifySaved(current,after.current,{strictLayout:['node.renumber','plan.replace','plan.restoreSnapshot'].includes(op)||op==='plan.batch'&&p.changes.some(c=>c.op==='node.renumber')});
- return {targetId:id,serverVerified:true,...(flowCheck?{flowCheck}:{}),...(backupId?{backupId}:{}),...(changes?{changes}:{}),...(verification?{verification}:{}),beforeVersion:before?.revision,afterVersion:after.revision,data:after};
+ return {targetId:id,serverVerified:true,websiteState:websiteState(after),...(flowCheck?{flowCheck}:{}),...(backupId?{backupId}:{}),...(changes?{changes}:{}),...(verification?{verification}:{}),beforeVersion:before?.revision,afterVersion:after.revision,data:after};
  }
 }

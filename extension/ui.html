@@ -29,6 +29,7 @@
         <button id="copyMcpPrompt" class="primary">复制给 MCP AI</button>
         <button id="copyPrompt">复制给普通 AI</button>
       </div>
+      <div class="actions"><button id="newPlanPrompt" type="button">新建计划图（复制给 MCP AI）</button></div>
     </section>
     <details class="execute-card">
       <summary>JSON 指令</summary>
@@ -69,7 +70,9 @@
     </div>
     <div class="setting-row"><label for="hideSidebar">隐藏旧计划栏</label><input id="hideSidebar" type="checkbox"></div>
     <div class="setting-row"><button type="button" id="allowLocalPairing">连接本机服务</button></div>
+    <details><summary>指定实例（可选）</summary><label for="pairPort">启动器显示的本机端口</label><input id="pairPort" inputmode="numeric" type="number" min="1024" max="65535"></details>
     <div class="setting-row"><span id="mcpState" role="status">MCP 未连接</span><button id="disconnectMcp">断开</button></div>
+    <p id="mcpDetail" class="hint" role="status"></p>
     <details id="compatibilityDetails" hidden>
       <summary>兼容性检查</summary>
       <p id="compatibilityStatus" class="hint" role="status"></p>
