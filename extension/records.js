@@ -11,12 +11,13 @@ export async function runRecord(request, step, envelope) {
  const review=step.op==='records.review', link=step.op==='records.link';
  if(step.op==='records.claimNumber'||step.op==='records.linkNode')return workspaceWrite(request,step,envelope,meta);
  if (link && meta.canAssociate!==true) fail('PERMISSION_DENIED');
- if ((review||p.direct) && !meta.reviewer) fail('PERMISSION_DENIED');
+ if (p.direct && !meta.reviewer) fail('PERMISSION_DENIED');
  if (envelope.execution?.backup) fail('UNSUPPORTED_BY_SITE','项目与任务申请暂不支持历史恢复');
  let current=null, kind=p.kind, action=p.action, targetId=p.targetId||'';
  if(review){
   current=(await request('/api/records/requests')).find(r=>r.id===p.requestId);
-  if(!current)fail('TARGET_NOT_FOUND');
+  if(!current)fail(meta.reviewer?'TARGET_NOT_FOUND':'PERMISSION_DENIED');
+  if(!(current.canReview??meta.reviewer))fail('PERMISSION_DENIED');
   assert(current.status==='pending','申请已经处理，请重新读取');
   kind=current.kind;action=current.action;targetId=current.targetId||'';
  }else if(link||action==='update'){
@@ -25,7 +26,9 @@ export async function runRecord(request, step, envelope) {
  }
  if(current&&!equivalent(current,p.before))fail('VERSION_CONFLICT','记录已变化，请重新读取并预览');
  let payload;
- if(!link){
+ if(review&&['nodes','link'].includes(action))payload=current.payload;
+ else if(!link){
+  assert(p.payload,'需要项目或任务变更内容');
   assert(kind==='project'||kind==='task','未知记录类型');
   assert(kind==='project'?p.payload.shortName:p.payload.subject,'记录类型与内容不匹配');
   const fields=kind==='project'?['kind','referenceNumber','shortName','customerGroupName','internalGroupName','projectGroupName','owner','category','status','startDate','targetDate','note']:['projectId','type','subject','boardName','owner','status','completedAt','targetDate','content','deliverable','note'];
@@ -87,24 +90,34 @@ async function workspaceWrite(request,step,envelope,meta) {
    endpoint='/api/number-claims';
    body={kind:p.kind,title:p.title.trim(),operation:await operationId(envelope.requestId,step.id)};
  }else{
-   if(!meta.canAssociate)fail('PERMISSION_DENIED');
    const task=(await request('/api/records/tasks')).find(row=>row.id===p.taskId);
    if(!task || !equivalent(task,p.before))fail('VERSION_CONFLICT');
+   if(!(task.canSelectNodes??meta.canAssociate))fail('PERMISSION_DENIED');
    assert(!['已完成','已取消'].includes(task.status),'已结束的任务不可设置节点');
    const graph=await request(workspacePath('records.projectNodes',{projectId:task.projectId}));
    assert(graph.planId===p.planId,'项目关联计划已变化');
-   assert(!p.nodeId || graph.nodes.some(n=>String(n.id)===p.nodeId),'节点不属于该项目计划');
+   assert((p.nodeId!==undefined)!==(p.nodeLinks!==undefined),'选择 nodeId 或 nodeLinks');
+   const nodeLinks=p.nodeLinks??(p.nodeId?[{nodeId:p.nodeId,isKey:false}]:[]);
+   assert(new Set(nodeLinks.map(n=>n.nodeId)).size===nodeLinks.length&&nodeLinks.every(n=>graph.nodes.some(g=>String(g.id)===n.nodeId)),'节点重复或不属于该项目计划');
    endpoint='/api/records/tasks/'+encodeURIComponent(task.id)+'/project-node';
-   body={nodeId:p.nodeId};
+   body={nodeLinks};
  }
- if(envelope.mode==='preview')return {data:{before:p.before||null,after:body,taskId:p.taskId,planId:p.planId},serverVerified:false};
+ if(envelope.mode==='preview')return {data:{before:p.before||null,after:body,taskId:p.taskId,planId:p.planId,...(claim?{}:{expectedStatus:p.before.nodeSelectionNeedsReview?'待审核':'已保存',reviewer:p.before.nodeSelectionNeedsReview?p.before.owner:null})},serverVerified:false};
  try{
    const result=await request(endpoint,'POST',body);
    if(claim){
      if(!result?.number || result.title!==body.title)fail('SERVER_NOT_CONFIRMED');
    }else{
      const saved=(await request('/api/records/tasks')).find(row=>row.id===p.taskId);
-     if(!saved || String(saved.projectNodeId??'')!==p.nodeId)fail('SERVER_NOT_CONFIRMED');
+     if(!saved)fail('SERVER_NOT_CONFIRMED');
+     const normalized=links=>links.map(n=>[String(n.id??n.nodeId),!!n.isKey]).sort(([a],[b])=>a.localeCompare(b));
+     if(result?.status==='pending'){
+       const applications=await request('/api/records/requests');
+       const candidates=applications.filter(r=>r.status==='pending'&&r.action==='nodes'&&(r.target_id??r.targetId)===p.taskId&&Array.isArray(r.payload?.nodeDetails)&&equivalent(normalized(r.payload.nodeDetails),normalized(body.nodeLinks))&&(!result.id||r.id===result.id));
+       if(candidates.length!==1||!equivalent(saved.projectNodeLinks,p.before.projectNodeLinks))fail('SERVER_NOT_CONFIRMED');
+       return {data:{status:'pending',requestId:candidates[0].id,reviewer:result.reviewer},serverVerified:true};
+     }
+     if(!Array.isArray(saved.projectNodeLinks)||!equivalent(normalized(saved.projectNodeLinks),normalized(body.nodeLinks)))fail('SERVER_NOT_CONFIRMED');
    }
    return {data:result,serverVerified:true};
  }catch(error){error.outcome='unconfirmed';throw error;}

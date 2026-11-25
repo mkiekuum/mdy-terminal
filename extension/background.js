@@ -74,8 +74,9 @@ export async function currentPlanTarget(reference){
    for(const tab of all){
     try{
      const {actor}=await sessionFor(tab);
-     const record=await request(tab,'/api/plans/'+encodeURIComponent(requested.id));
-     if(record.id===requested.id)sessions.set(actor,tab);
+     const restoring=reference?.steps?.[0]?.op==='plan.restore';
+     const record=restoring?(await request(tab,'/api/trash')).find(row=>row.id===requested.id):await request(tab,'/api/plans/'+encodeURIComponent(requested.id));
+     if(record?.id===requested.id)sessions.set(actor,tab);
     }catch{/* This session cannot read the requested plan. */}
    }
    if(sessions.size===1)return {tab:sessions.values().next().value,selection:'background_session'};
@@ -206,8 +207,8 @@ const mcpBridge = startMcpBridge({
   const session = await sessionFor(tab);
   if(config.creatingDraft)return JSON.stringify({actor:session.actor,tabId:tab.id,operation:'plan.create'});
   if(config.planId){
-   const record=await request(tab,'/api/plans/'+encodeURIComponent(config.planId));
-   if(record.id!==config.planId||!Number.isInteger(record.revision))fail('TARGET_CHANGED','无法核对指定目标和版本');
+   const record=config.restoring?(await request(tab,'/api/trash')).find(row=>row.id===config.planId):await request(tab,'/api/plans/'+encodeURIComponent(config.planId));
+   if(record?.id!==config.planId||!Number.isInteger(record.revision))fail('TARGET_CHANGED','无法核对指定目标和版本');
    return JSON.stringify({actor:session.actor,planId:record.id,revision:record.revision,reviewStatus:record.review?.status||null});
   }
   const page = await bridge(tab.id, {kind:'inspect'});

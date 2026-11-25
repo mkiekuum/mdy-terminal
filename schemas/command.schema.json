@@ -162,6 +162,7 @@
                     "records.projects",
                     "records.tasks",
                     "records.requests",
+                    "records.trash",
                     "records.projectPage",
                     "records.taskPage",
                     "records.planPage",

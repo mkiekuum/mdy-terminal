@@ -8,6 +8,7 @@ const listing = {page,size,q:text,owner:text,status:text,coverage:text,assistant
 const contract = (properties,required=[]) => ({type:'object',properties,required,additionalProperties:false});
 
 const routes = {
+  'records.trash':['/api/trash',{}],
   'records.projectPage':['/api/records/projects',listing],
   'records.taskPage':['/api/records/tasks',{...listing,projectId:id}],
   'records.planPage':['/api/plans',listing],
@@ -22,7 +23,7 @@ const routes = {
 export const workspaceReads = Object.fromEntries(Object.entries(routes).map(([op,[url]])=>[op,url]));
 export const workspaceSchemas = Object.fromEntries(Object.entries(routes).map(([op,[,fields,required]])=>[op,contract(fields,required)]));
 workspaceSchemas['records.claimNumber']=contract({kind,title:id},['kind','title']);
-workspaceSchemas['records.linkNode']=contract({taskId:id,planId:id,nodeId:text,before:{type:'object'}},['taskId','planId','nodeId','before']);
+workspaceSchemas['records.linkNode']=contract({taskId:id,planId:id,nodeId:text,nodeLinks:{type:'array',items:contract({nodeId:id,isKey:{type:'boolean'}},['nodeId','isKey'])},before:{type:'object'}},['taskId','planId','before']);
 
 export function workspacePath(op,params) {
   const [url] = routes[op];

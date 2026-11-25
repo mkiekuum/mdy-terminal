@@ -50,7 +50,7 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
     }
     if (!target.tab) throw Error(target.selection === 'ambiguous'
       ? '请指定命令的 tabId 或切到目标计划站页。' : '请打开 MDY网页。');
-    targetConfig = {...config, tabId:target.tab.id,planId:command?.steps?.[0]?.target?.id,
+    targetConfig = {...config, tabId:target.tab.id,planId:command?.steps?.[0]?.target?.id,restoring:command?.steps?.[0]?.op==='plan.restore',
       creatingDraft:command?.steps?.length===1 && command.steps[0].op==='plan.create'};
     const rebound = command && command.tabId !== target.tab.id
       ? {...job,tabId:target.tab.id,command:{...command,tabId:target.tab.id}}

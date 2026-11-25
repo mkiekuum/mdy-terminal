@@ -1626,6 +1626,23 @@
       ],
       "properties": {
         "op": {
+          "const": "records.trash"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
           "const": "records.projectPage"
         },
         "params": {
@@ -2022,6 +2039,26 @@
             "nodeId": {
               "type": "string"
             },
+            "nodeLinks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "nodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "isKey": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "nodeId",
+                  "isKey"
+                ],
+                "additionalProperties": false
+              }
+            },
             "before": {
               "type": "object"
             }
@@ -2029,7 +2066,6 @@
           "required": [
             "taskId",
             "planId",
-            "nodeId",
             "before"
           ],
           "additionalProperties": false
@@ -2338,8 +2374,7 @@
           "required": [
             "requestId",
             "before",
-            "decision",
-            "payload"
+            "decision"
           ],
           "additionalProperties": false
         }

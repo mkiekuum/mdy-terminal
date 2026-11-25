@@ -1385,6 +1385,17 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
 }
 ```
 
+## records.trash
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}
+```
+
 ## records.projectPage
 
 ```json
@@ -1712,6 +1723,26 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
     "nodeId": {
       "type": "string"
     },
+    "nodeLinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "isKey": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "nodeId",
+          "isKey"
+        ],
+        "additionalProperties": false
+      }
+    },
     "before": {
       "type": "object"
     }
@@ -1719,7 +1750,6 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
   "required": [
     "taskId",
     "planId",
-    "nodeId",
     "before"
   ],
   "additionalProperties": false
@@ -2014,8 +2044,7 @@ site.context.params.projectGroups 可选 all/selected/omit；默认 all，旧指
   "required": [
     "requestId",
     "before",
-    "decision",
-    "payload"
+    "decision"
   ],
   "additionalProperties": false
 }

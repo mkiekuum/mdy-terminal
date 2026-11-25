@@ -50,7 +50,7 @@ const payload={oneOf:[projectPayload,taskPayload]};
 for(const op of ['records.meta','records.projects','records.tasks','records.requests'])parameterSchemas[op]=object({});
 Object.assign(parameterSchemas,workspaceSchemas);
 parameterSchemas['records.submit']=object({kind:recordKind,action:{enum:['create','update']},targetId:nonempty,before:basis,payload,direct:boolean},['kind','action','payload']);
-parameterSchemas['records.review']=object({requestId:nonempty,before:basis,decision:{enum:['approve','reject']},payload,note:string},['requestId','before','decision','payload']);
+parameterSchemas['records.review']=object({requestId:nonempty,before:basis,decision:{enum:['approve','reject']},payload,note:string},['requestId','before','decision']);
 parameterSchemas['records.link']=object({kind:recordKind,targetId:nonempty,before:basis,planId:string},['kind','targetId','before','planId']);
 parameterSchemas['schedule.updateInputs']=parameterSchemas['plan.update'];
 parameterSchemas['progress.complete']=parameterSchemas['progress.update'];
