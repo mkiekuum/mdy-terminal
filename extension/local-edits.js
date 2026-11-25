@@ -29,7 +29,17 @@ export function planDiff(before,after){
  const changedFields=fields.filter(k=>!equivalent(before?.[k],after?.[k]));
  const nodes=after?.nodes||[],old=before?.nodes||[];
  const names=nodes.filter(n=>old.some(o=>o.id===n.id&&o.name!==n.name)).length;
- return {changedFields,renamedNodes:names,nodesChanged:!equivalent(old,nodes),edgesChanged:!equivalent(before?.edges,after?.edges),layoutChanged:!equivalent(before?.positions,after?.positions)};
+ const index = edges => new Map((edges||[]).map(e=>[JSON.stringify([e.from,e.to]),e]));
+ const prior=index(before?.edges), next=index(after?.edges);
+ const added=[], removed=[], retained=[];
+ for(const [key,edge] of next){
+  const oldEdge=prior.get(key);
+  if(!oldEdge){added.push(edge);continue;}
+  retained.push({from:edge.from,to:edge.to,executorPreserved:oldEdge.executor===edge.executor,
+   durationPreserved:oldEdge.upper===edge.upper,completionPreserved:oldEdge.completedAt===edge.completedAt});
+ }
+ for(const [key,edge] of prior)if(!next.has(key))removed.push(edge);
+ return {directEdges:{added,removed,retained},changedFields,renamedNodes:names,nodesChanged:!equivalent(old,nodes),edgesChanged:!equivalent(before?.edges,after?.edges),layoutChanged:!equivalent(before?.positions,after?.positions)};
 }
 
 export function requestedChanges(step,plan){

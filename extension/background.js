@@ -1,6 +1,7 @@
 import {pagePlanTarget} from './page-plan-target.js';
 import {choosePlanTab} from './active-plan-tab.js';
 import {startMcpBridge} from './mcp-bridge.js';
+import {claimPairing} from './mcp-connection.js';
 import {redact} from './assistance.js';
 import {Executor,validate,fail,VERSION,clean} from './core.js';
 import {ApiAdapter,reads,writes} from './api.js';
@@ -45,9 +46,43 @@ async function exportCommand(tab,op,p){
 const checkUpdates=createUpdateChecker({load:async()=>(await chrome.storage.local.get('releaseCheck')).releaseCheck,save:report=>chrome.storage.local.set({releaseCheck:report})});
 async function compatibilityFor(tab){return collectCompatibility({inspect:()=>bridge(tab.id,{kind:'inspect'}),session:()=>request(tab,'/api/session'),plans:()=>request(tab,'/api/plans'),probe:async()=>(await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:probeNativeCompatibility}))[0]?.result,userScripts:async()=>{if(!chrome.userScripts?.getScripts)return false;await chrome.userScripts.getScripts();return true;}});}
 const store={get:async k=>(await chrome.storage.local.get(k))[k],set:async(k,v)=>chrome.storage.local.set({[k]:v})};
-async function currentPlanTarget(tabId){
- if (tabId !== undefined) return {tab:await tabFor({tabId}), selection:"explicit"};
+async function currentPlanTarget(reference){
+ const explicitTabId=typeof reference==='number'?reference:reference?.tabId;
+ const requested=reference?.steps?.map(step=>step.target).find(target=>target?.id||target?.number);
+ if (explicitTabId !== undefined) {
+  try{return {tab:await tabFor({tabId:explicitTabId}),selection:'explicit'};}
+  catch(error){if(!requested)throw error;}
+ }
  const all=await chrome.tabs.query({url:'https://plan.fpgabbs.cn/*'});
+ if(requested){
+  const matches=[];
+  for(const candidate of all){
+   try{
+    const page=await bridge(candidate.id,{kind:'inspect'});
+    if(requested.number&&page.activeTarget?.number!==requested.number)continue;
+    if(requested.id){
+     const plans=await request(candidate,'/api/plans');
+     const stable=await pagePlanTarget(page,()=>plans);
+     if(stable?.id!==requested.id)continue;
+    }
+    matches.push(candidate);
+   }catch{/* stale or logged-out tabs are not candidates */}
+  }
+  if(matches.length===1)return {tab:matches[0],selection:'stable_target'};
+  if(!matches.length&&requested.id){
+   const sessions=new Map();
+   for(const tab of all){
+    try{
+     const {actor}=await sessionFor(tab);
+     const record=await request(tab,'/api/plans/'+encodeURIComponent(requested.id));
+     if(record.id===requested.id)sessions.set(actor,tab);
+    }catch{/* This session cannot read the requested plan. */}
+   }
+   if(sessions.size===1)return {tab:sessions.values().next().value,selection:'background_session'};
+   if(sessions.size>1)return {tab:null,selection:'ambiguous'};
+  }
+  return {tab:null,selection:matches.length?'ambiguous':'no_target'};
+ }
  let last;
  if(chrome.windows?.getLastFocused)last=(await chrome.windows.getLastFocused().catch(()=>null))?.id;
  const tab = choosePlanTab(all, last, last);
@@ -164,23 +199,56 @@ const mcpBridge = startMcpBridge({
   return {...report, session, ...(login ? {loginAction: action} : {})};
  },
  run: async (command, config) => {
-  if (command.tabId && command.tabId !== config.tabId) fail('TARGET_CHANGED', '指令中的网页与当前MDY 计划站页不同，请重新读取上下文。');
-  return executor.run({...command, tabId: config.tabId});
+   return executor.run({...command, tabId: config.tabId});
  },
  identity: async config => {
   const tab = await tabFor({tabId: config.tabId});
   const session = await sessionFor(tab);
+  if(config.creatingDraft)return JSON.stringify({actor:session.actor,tabId:tab.id,operation:'plan.create'});
+  if(config.planId){
+   const record=await request(tab,'/api/plans/'+encodeURIComponent(config.planId));
+   if(record.id!==config.planId||!Number.isInteger(record.revision))fail('TARGET_CHANGED','无法核对指定目标和版本');
+   return JSON.stringify({actor:session.actor,planId:record.id,revision:record.revision,reviewStatus:record.review?.status||null});
+  }
   const page = await bridge(tab.id, {kind:'inspect'});
   if (!page?.activeTarget) fail('TARGET_CHANGED', '无法核对当前计划');
-  return JSON.stringify([tab.id, new URL(tab.url).searchParams.get('plan'), page.activeTarget.number, page.activeTarget.owner, session.actor]);
+  let planId=null,revision=null,reviewStatus=null;
+  try {
+   const stable=await pagePlanTarget(page,()=>request(tab,'/api/plans'));
+   planId=stable?.id||null;
+   if(planId){const record=await request(tab,'/api/plans/'+encodeURIComponent(planId));revision=record.revision;reviewStatus=record.review?.status||null;}
+  } catch {fail('TARGET_CHANGED','无法核对目标版本，请重新读取并预览。');}
+  return JSON.stringify({tabId:tab.id,planId,number:page.activeTarget.number||null,owner:page.activeTarget.owner||null,actor:session.actor,revision,reviewStatus});
  }
 });
+let checkingPairing=false,pairTimer;
+async function finishPairing(){
+ if(checkingPairing)return;
+ checkingPairing=true;
+ try{
+  const {mcpPairingPending:pending}=await chrome.storage.local.get('mcpPairingPending');
+  if(!pending)return;
+  try{
+   if(!await chrome.permissions.contains({origins:['http://127.0.0.1/*']}))fail('BROWSER_PERMISSION_DENIED','浏览器已撤销本机连接授权。');
+   const connection=await claimPairing(pending);
+   if((await chrome.storage.local.get('mcpPairingPending')).mcpPairingPending?.id!==pending.id)return;
+   if(!connection){clearTimeout(pairTimer);pairTimer=setTimeout(finishPairing,1500);return;}
+   await chrome.storage.local.set({mcpConnection:connection});
+   await chrome.storage.local.remove('mcpPairingPending');
+  }catch(error){
+   if((await chrome.storage.local.get('mcpPairingPending')).mcpPairingPending?.id!==pending.id)return;
+   if(!error.code && pending.expires>Date.now())return;
+   await chrome.storage.local.remove('mcpPairingPending');
+   await chrome.storage.local.set({mcpBridgeStatus:{state:'error',code:error.code||'PAIRING_EXPIRED',message:error.message,at:Date.now()}});
+  }
+ }finally{checkingPairing=false;}
+}
 chrome.runtime.onStartup?.addListener(async () => {
  await mcpBridge.reset();
  await mcpBridge.tick();
 });
-chrome.alarms?.onAlarm.addListener(a=>{if(a.name==='xutu-mcp')mcpBridge.tick();});
+chrome.alarms?.onAlarm.addListener(a=>{if(a.name==='xutu-mcp'){finishPairing();mcpBridge.tick();}});
 chrome.alarms?.create('xutu-mcp',{periodInMinutes:0.5});
-chrome.storage.onChanged?.addListener(async(c,area)=>{if(area==='local'&&c.mcpConnection){await mcpBridge.reset();await mcpBridge.tick();}});
+chrome.storage.onChanged?.addListener(async(c,area)=>{if(area!=='local')return;if(c.mcpPairingPending?.newValue)finishPairing();if(c.mcpConnection){await mcpBridge.reset();await mcpBridge.tick();}});
 
 }

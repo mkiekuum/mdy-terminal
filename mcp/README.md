@@ -4,13 +4,13 @@
 
 ## 便携版（推荐）
 
-没有安装 Node.js 的电脑请从同版本 Release 下载与系统和架构匹配的便携包。解压后运行根目录 Start-MCP.cmd 或 Start-MCP.command。首次空闲端口由服务选择；已有配置冲突时复用已运行的服务，或使用 --new-instance。扩展设置中导入启动器显示的 connection.json。stdio 客户端可直接调用包内 runtime/node（Windows 为 node.exe）及 mcp/stdio.mjs --paired；多实例通过 XUTU_PAIR_FILE 指定配对文件。保留整个解压目录。
+选择同版便携包，保留整个目录。Agent 使用包内 runtime 启动本机服务，stdio 客户端使用 mcp/stdio.mjs --paired。
 
 ## 源码方式首次使用
 
 1. 登录MDY 计划站，输入需求，点击“复制给 MCP AI”。首次由浏览器询问允许连接本机，须使用者自己授权。
-2. 插件保存当前浏览器的连接配置，每次请求时自动识别MDY 计划站页。有多个候选时，切到目标计划再试。MCP 提示词含 clientToken 和 bridgeToken，供可信本机 AI 配置连接。
-3. 把提示词交给有本机工具的 AI，按其中步骤检查 Node22+、获取/核验同版源码、将精确配置写入用户目录 .xutu-mcp/connection.json、运行 mcp/start-local.mjs、配置客户端并核验。不能把该配置当成网站 JSON 执行。AI 无本机工具时无法自动安装，应回到普通 JSON。
+2. 已有配对会自动复用。首次配对时 Agent 使用同版运行时执行 mcp/pair-local.mjs，读取剪贴板中的一次性请求并核准。
+3. Agent 用 xutu_status 核实已登录的浏览器会话，再按稳定 ID 只读回读目标。多个服务时须核对实例归属。
 4. 服务仅监听127.0.0.1:62924，不部署公网。保持服务进程；关闭后连接断开。Windows 手动备用入口为 mcp/Start-MCP.cmd，普通 JSON 使用不需要 Node。
 5. 每位用户独立生成凭据，不随源码分享。旧配置更新前核对归属和在途请求；只停止确认为该本机服务的进程。浏览器重启后已启用的配对会继续工作。每次请求自动识别当前MDY 计划站页；密钥沿用，断开则删除本机扩展配置。
 

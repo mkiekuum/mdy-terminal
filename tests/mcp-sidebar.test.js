@@ -46,7 +46,7 @@ test('连接导入只接受本机独立凭据，MCP提示词包含私密配置�
  const {parseConnection}=await import('../extension/mcp-connection.js');
  const clientToken='CLIENT_TEST_'.repeat(4),bridgeToken='BRIDGE_TEST_'.repeat(4),source={url:'http://127.0.0.1:62924',clientToken,bridgeToken,unexpected:'do not retain'};
  const c=parseConnection(JSON.stringify(source),123);assert.equal(c.token,bridgeToken);assert.equal(c.unexpected,undefined);assert.equal(c.tabId,123);
- const text=mcpPrompt('本次需求',c);assert(text.includes(clientToken));assert(text.includes(bridgeToken));assert(text.includes('本次需求'));assert(text.includes('仅收到文字不代表工具已安装'));assert(!mcpPrompt('普通内容').includes(clientToken));
+ const text=mcpPrompt('本次需求',c);assert(!text.includes(clientToken));assert(!text.includes(bridgeToken));assert(text.includes('本次需求'));assert(!mcpPrompt('普通内容').includes(clientToken));
  for(const override of [{url:'https://example.com'},{url:'http://127.0.0.1:62924/path'},{clientToken:bridgeToken},{bridgeToken:'short'},{clientToken:'x\n'.repeat(40)}])assert.throws(()=>parseConnection(JSON.stringify({...source,...override}),123));
  assert.throws(()=>parseConnection(JSON.stringify(source),null));assert.throws(()=>parseConnection('x'.repeat(4097),123));assert.throws(()=>parseConnection('null',123));
 });

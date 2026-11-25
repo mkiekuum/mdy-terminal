@@ -1,7 +1,7 @@
 name: Portable release checks
 on:
   push:
-    branches: ['release/v5.0.0']
+    branches: ['release/v5.0.0','release/v5.1.0']
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,8 +26,8 @@ jobs:
           python-version: '3.12'
       - run: python tools/package-portable.py ${{ matrix.archive }}
       - shell: bash
-        run: python tools/test-portable.py dist/mdy-terminal-v5.0.0-*.zip
+        run: python tools/test-portable.py dist/mdy-terminal-v*-*.zip
       - uses: actions/upload-artifact@v4
         with:
           name: portable-${{ matrix.os }}
-          path: dist/mdy-terminal-v5.0.0-*.zip
+          path: dist/mdy-terminal-v*-*.zip

@@ -45,7 +45,7 @@ test('a lost response retries only the receipt and honors explicit page selectio
     tabId:42,steps:[{id:'s',op:'site.session'}]}};
   let runs=0, pulls=0;
   const receipts=[];
-  const bridge=startMcpBridge({storage,resolveTarget:async id=>({tab:{id}}),
+  const bridge=startMcpBridge({storage,resolveTarget:async command=>({tab:{id:command.tabId}}),
     run:async (_,config)=>{assert.equal(config.tabId,42);runs++;return {status:'success'};},
     fetcher:async (url,options)=>{
       if(url.endsWith('/next')) return Response.json(++pulls===1?job:null);

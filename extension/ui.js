@@ -1,6 +1,6 @@
 import {setupToolPanels} from './ui-panels.js';
 import {mcpPrompt} from './mcp-policy.js';
-import {createConnection,parseConnection} from './mcp-connection.js';
+import {authorizePairing,setupAutoPairing} from './ui-pairing.js';
 import {flowFeedback} from './flow-check.js';
 import {projectGroupMode} from './prompt-context.js';
 import {businessDiff} from './history.js';
@@ -95,21 +95,18 @@ refresh().catch(e=>{$('connection').textContent='暂未连接';document.querySel
 
 $('copyMcpPrompt').onclick = () => busy('copyMcpPrompt', async () => {
  const text = $('request').value, selected = tabId();
- let connection;
+ let pairing;
  if (selected) {
-  const allowed = await chrome.permissions.request({origins:['http://127.0.0.1/*']});
-  if (!allowed) throw Error('需允许访问本机服务才能连接 MCP');
-  const {mcpConnection:previous} = await chrome.storage.local.get('mcpConnection');
-  connection = createConnection(selected, previous);
-  await chrome.storage.local.set({mcpConnection:connection});
+  pairing = await authorizePairing(chrome,tabId);
  }
  const context = await readContext(projectGroupMode(text));
  if (selected !== tabId() || text !== $('request').value) throw Error('需求或目标变化，请重新复制');
- await clipboard(mcpPrompt(buildPrompt(text, context, selected), connection));
- message(selected ? '已复制 MCP 提示词。' : '已复制提示词。打开 MDY页后可配对 MCP。');
+ const offer=pairing?.pending;
+ await clipboard((offer?'MDY-PAIRING-OFFER: '+offer.id+'\n':'')+mcpPrompt(buildPrompt(text, context, selected)));
+ message(offer?(offer.mismatch?'检测到配对不一致，等待本机 Agent 核准恢复。':'等待本机 Agent 核准连接。'):selected?'已复制 MCP 提示词，复用现有配对。':'已复制提示词。打开 MDY 页后可配对。');
 });
 async function refreshMcpSettings() {
- const {mcpConnection, mcpBridgeStatus, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'hideSidebar']);
+ const {mcpConnection, mcpBridgeStatus, mcpPairingPending, hideSidebar} = await chrome.storage.local.get(['mcpConnection', 'mcpBridgeStatus', 'mcpPairingPending', 'hideSidebar']);
  $('hideSidebar').checked = !!hideSidebar;
  const state = mcpBridgeStatus?.state;
  let label = 'MCP 未连接';
@@ -117,7 +114,7 @@ async function refreshMcpSettings() {
   const recent = Date.now() - mcpBridgeStatus?.at <= 90000;
   label = state === 'connected' && recent ? 'MCP 已连接' : state === 'error' ? 'MCP 连接失败' : 'MCP 等待连接';
  }
- $('mcpState').textContent = label;
+ $('mcpState').textContent = mcpPairingPending ? '等待本机 Agent 核准' : label;
  $('mcpState').title = mcpBridgeStatus?.message || '';
  $('disconnectMcp').hidden = !mcpConnection;
 }
@@ -129,26 +126,11 @@ $('hideSidebar').onchange=async()=>{
   message('旧计划栏设置已保存。');
  }catch(error){message(error.message,true);}
 };
-$('localPairing').onchange=async event=>{
- const file=event.target.files?.[0];
- if(!file)return;
- try{
-  if(file.size>4096)throw Error('请选择本机 MCP 生成的 connection.json');
-  const selected=tabId();
-  if(!await chrome.permissions.request({origins:['http://127.0.0.1/*']}))throw Error('需要访问本机服务的权限');
-  const config=parseConnection(await file.text(),selected);
-  if(selected!==tabId())throw Error('目标网页已变化，请重新选择');
-  const previous=(await chrome.storage.local.get('mcpConnection')).mcpConnection;
-  if(previous?.token===config.token && previous.url===config.url && previous.bridgeId)config.bridgeId=previous.bridgeId;
-  await chrome.storage.local.set({mcpConnection:config});
-  message('已保存配对，正在连接本机服务。');
- }catch(error){message(error.message,true);}
- finally{event.target.value='';}
-};
-$('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews']);$('mcpState').textContent='已断开，清除本机连接密钥。';});
+setupAutoPairing($('allowLocalPairing'),chrome,tabId,message,clipboard);
+$('disconnectMcp').onclick=()=>busy('disconnectMcp',async()=>{await chrome.storage.local.remove(['mcpConnection','mcpBridgeStatus','mcpPreviews','mcpPairingPending']);$('mcpState').textContent='已断开，清除浏览器连接。';});
 
 chrome.storage.onChanged?.addListener((changes, area) => {
- if (area === 'local' && (changes.mcpConnection || changes.mcpBridgeStatus || changes.hideSidebar)) refreshMcpSettings();
+ if (area === 'local' && (changes.mcpConnection || changes.mcpPairingPending || changes.mcpBridgeStatus || changes.hideSidebar)) refreshMcpSettings();
 });
 
 function displayLogin(info) {

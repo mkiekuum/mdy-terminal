@@ -6,7 +6,7 @@ import {createRelay} from './relay.mjs';
 import {relayUrl} from '../extension/mcp-bridge.js';
 
 if(process.argv.includes('--help')){
-  console.log('Start-MCP [--new-instance]: run a paired local relay; use --new-instance for an independent port and pairing file.');
+  console.log('Start-MCP [--new-instance]: run a paired local relay. MDY Terminal discovers the pairing after browser authorization; no file import is required.');
   process.exit(0);
 }
 if(process.argv.slice(2).some(arg=>arg!=='--new-instance'))throw Error('Unknown option. Run with --help.');
@@ -29,12 +29,13 @@ async function start(){
       server.once('error',failed).once('listening',ready).listen(number,'127.0.0.1');
     });
   }
-  try{await listen(isolated?0:port);}
-  catch(error){
-    if(error.code!=='EADDRINUSE')throw error;
-    if(!first)throw Error('Port in use. Reuse the running relay or start with --new-instance for an independent pairing.');
-    await listen(0);
+  const preferredPorts=isolated?[0]:first?[port,...Array.from({length:10},(_,i)=>port+i+1)]:[port];
+  let selectedPort;
+  for(const candidate of preferredPorts){
+   try{await listen(candidate);selectedPort=candidate;break;}
+   catch(error){if(error.code!=='EADDRINUSE')throw error;}
   }
+  if(selectedPort===undefined)throw Error(first?'No available loopback port in the MDY Terminal range. Reuse the running relay or start with --new-instance.':'Port in use for the configured MDY Terminal instance. Reuse the running relay or start with --new-instance.');
   try{
     if(first){
       cfg.url='http://127.0.0.1:'+server.address().port;

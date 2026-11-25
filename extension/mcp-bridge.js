@@ -43,15 +43,19 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
     if (JSON.stringify(current) !== JSON.stringify(config)) throw Error('连接设置已变化，未执行');
     const command = job.kind === 'execute'
       ? (await previews.get(job.previewJobId))?.command : job.command;
-    const target = resolveTarget ? await resolveTarget(command?.tabId) :
+    const target = resolveTarget ? await resolveTarget(command) :
       {tab:{id:config.tabId}, selection:'selected'};
     if (job.kind === 'status' || job.kind === 'login') {
       return browserStatus(target, job.kind === 'login');
     }
     if (!target.tab) throw Error(target.selection === 'ambiguous'
       ? '请指定命令的 tabId 或切到目标计划站页。' : '请打开 MDY网页。');
-    targetConfig = {...config, tabId:target.tab.id};
-    return gate.handle(job);
+    targetConfig = {...config, tabId:target.tab.id,planId:command?.steps?.[0]?.target?.id,
+      creatingDraft:command?.steps?.length===1 && command.steps[0].op==='plan.create'};
+    const rebound = command && command.tabId !== target.tab.id
+      ? {...job,tabId:target.tab.id,command:{...command,tabId:target.tab.id}}
+      : {...job,tabId:target.tab.id};
+    return gate.handle(rebound);
   }
 
   async function tick() {
@@ -85,7 +89,12 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
         else pendingReceipt = undefined;
       }
       const response = await fetcher(base + '/bridge/next', options());
-      if (!response.ok) throw Error('连接失败 HTTP ' + response.status);
+      if (!response.ok) {
+        const details={401:['CREDENTIAL_MISMATCH','本机服务在线，但浏览器配对凭据不一致，请通过“连接本机服务”重新配对。'],
+          409:['ANOTHER_BROWSER_CONNECTED','本机服务已有其他浏览器桥在线，未覆盖或终止其他实例。'],
+          404:['RELAY_INCOMPATIBLE','本机服务版本不支持当前浏览器桥协议。']}[response.status];
+        const error=Error(details?.[1]||'连接失败 HTTP '+response.status);error.code=details?.[0]||'RELAY_HTTP_ERROR';throw error;
+      }
       const job = await response.json();
       delay = job ? 0 : 3000;
       if (job) {
@@ -101,7 +110,8 @@ export function startMcpBridge({run, identity, storage, resolveTarget, browserSt
       }
     } catch (error) {
       delay = undefined; // A Chrome alarm retries when the service or permission returns.
-      await storage.set({mcpBridgeStatus:{state:'error', message:error.message, at:Date.now()}});
+      const code=error.code||(/Failed to fetch|NetworkError/i.test(error.message)?'RELAY_OFFLINE':'MCP_CONNECTION_ERROR');
+      await storage.set({mcpBridgeStatus:{state:'error',code,message:error.message,at:Date.now()}});
     } finally {
       running = false;
       if (schedule && delay !== undefined) timer = schedule(tick, delay);

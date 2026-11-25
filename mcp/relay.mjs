@@ -1,11 +1,12 @@
-import http from 'node:http';import {timingSafeEqual} from 'node:crypto';import {pathToFileURL} from 'node:url';
+import http from 'node:http';import {timingSafeEqual,randomBytes,createHash} from 'node:crypto';import {pathToFileURL} from 'node:url';
 import {requestJob} from './job-queue.mjs';
 import {VERSION} from '../extension/core.js';
 
 const object=properties=>({type:'object',properties,additionalProperties:false});
-export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now()}){
+export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now(),pairingNonceTtlMs=120000}){
  if(!clientToken||!bridgeToken||clientToken.length<32||bridgeToken.length<32||clientToken===bridgeToken)throw Error('需要两枚不同的至少32字符密钥');
  const jobs=new Map();let lastBridge=null,activeBridge=null,bridgeProtocol=null,extensionVersion=null;
+ const offers=new Map(),digest=s=>createHash('sha256').update(s).digest('hex');
  const auth=(req,token)=>{const got=Buffer.from(req.headers.authorization||''),want=Buffer.from('Bearer '+token);return got.length===want.length&&timingSafeEqual(got,want);};
  const tools=[
   {name:'xutu_status',description:'检查本机服务、扩展版本、自动选中的MDY 计划站页、会话与自动登录开关。在线时按 jobId 取结果。',inputSchema:object({})},
@@ -14,7 +15,43 @@ export function createRelay({clientToken,bridgeToken,origins=[],now=()=>Date.now
  const server=http.createServer(async(req,res)=>{
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
   try{
-   if(req.headers.origin&&!origins.includes(req.headers.origin)&&!new RegExp("^chrome-extension://[a-p]{32}$").test(req.headers.origin))return json(403,{error:'ORIGIN_DENIED'});
+   const extensionOrigin=req.headers.origin&&new RegExp("^chrome-extension://[a-p]{32}$").test(req.headers.origin);
+   if(req.headers.origin&&!origins.includes(req.headers.origin)&&!extensionOrigin)return json(403,{error:'ORIGIN_DENIED'});
+   if(req.headers.host!=='127.0.0.1:'+server.address()?.port)return json(403,{error:'LOOPBACK_HOST_REQUIRED'});
+   if(req.url?.startsWith('/pairing/')){
+    for(const [id,entry] of offers)if(entry.expires<=now())offers.delete(id);
+    if(req.method==='GET'&&req.url==='/pairing/info')return json(200,{protocol:'xutu-pairing/v1',relayVersion:VERSION});
+    if(req.method!=='POST')return json(405,{error:'METHOD_NOT_ALLOWED'});
+    if(req.url==='/pairing/approve'){
+     if(req.headers.origin||!auth(req,clientToken))return json(401,{error:'UNAUTHORIZED'});
+     const entry=offers.get(req.headers['x-xutu-pairing-id']);
+     if(!entry)return json(404,{error:'PAIRING_EXPIRED'});
+     if(activeBridge&&activeBridge!==entry.peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     entry.approved=true;return json(200,{status:'authorized'});
+    }
+    if(req.url==='/pairing/probe'){
+     if(!auth(req,bridgeToken))return json(401,{error:'CREDENTIAL_MISMATCH'});
+     const peer=req.headers['x-xutu-bridge-id'];
+     if(activeBridge&&activeBridge!==peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     return json(200,{protocol:'xutu-pairing/v1',relayVersion:VERSION});
+    }
+    const proof=req.headers['x-xutu-pairing-proof'],peer=req.headers['x-xutu-bridge-id'];
+    if(!extensionOrigin||typeof proof!=='string'||!/^[a-f0-9]{64}$/.test(proof)||typeof peer!=='string'||!/^[-a-zA-Z0-9]{8,80}$/.test(peer))return json(403,{error:'PAIRING_BROWSER_REQUIRED'});
+    if(req.url==='/pairing/request'){
+     if(offers.size>=16)return json(429,{error:'PAIRING_BUSY'});
+     const id=randomBytes(16).toString('hex');
+     offers.set(id,{proof:digest(proof),peer,origin:req.headers.origin,expires:now()+pairingNonceTtlMs});
+     return json(202,{id});
+    }
+    if(req.url==='/pairing/claim'){
+     const id=req.headers['x-xutu-pairing-id'],entry=offers.get(id);
+     if(!entry||entry.peer!==peer||entry.origin!==req.headers.origin||!timingSafeEqual(Buffer.from(entry.proof,'hex'),Buffer.from(digest(proof),'hex')))return json(403,{error:'PAIRING_PROOF_INVALID'});
+     if(!entry.approved)return json(202,{status:'waiting'});
+     if(activeBridge&&activeBridge!==peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});
+     offers.delete(id);return json(200,{bridgeToken,protocol:'xutu-pairing/v1',relayVersion:VERSION});
+    }
+    return json(404,{error:'NOT_FOUND'});
+   }
    const bridge=req.url?.startsWith('/bridge/');if(!auth(req,bridge?bridgeToken:clientToken))return json(401,{error:'UNAUTHORIZED'});
    if(bridge){const peer=req.headers['x-xutu-bridge-id'];if(typeof peer!=='string'||!/^[-a-zA-Z0-9]{8,80}$/.test(peer))return json(400,{error:'BRIDGE_ID_REQUIRED'});if(activeBridge&&activeBridge!==peer&&now()-lastBridge<90000)return json(409,{error:'ANOTHER_BROWSER_CONNECTED'});activeBridge=peer;}
    if(req.method==='GET'&&req.url==='/bridge/next'){
