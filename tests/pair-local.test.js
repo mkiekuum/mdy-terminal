@@ -54,6 +54,8 @@ test('diagnoses occupied port, incompatible versions and multiple instances; exp
   listen(t,http.createServer((_,res)=>res.end(JSON.stringify({protocol:'xutu-pairing/v1',relayVersion:'5.0.0'}))))
  ]);
  await assert.rejects(beginPairing({ports:[one,two],fetcher:browserFetch}),{code:'MULTIPLE_INSTANCES'});
+ assert.equal((await beginPairing({ports:[old,one],fetcher:browserFetch})).pending.url,'http://127.0.0.1:'+one);
+ await assert.rejects(beginPairing({previous:{url:'http://127.0.0.1:'+old},ports:[old,one],fetcher:browserFetch}),{code:'VERSION_MISMATCH'});
  await assert.rejects(beginPairing({port:other,fetcher:browserFetch}),{code:'PORT_OCCUPIED_OR_OLD_RELAY'});
  await assert.rejects(beginPairing({port:old,fetcher:browserFetch}),{code:'VERSION_MISMATCH'});
  assert((await beginPairing({port:one,fetcher:browserFetch})).pending);
